@@ -1,0 +1,13 @@
+pandas
+transformers
+torch
+huggingface_hub
+requests
+yfinance
+peft
+fastapi
+psycopg2-binary
+langgraph
+langchain-groq
+python-dotenv
+newsapi-python
