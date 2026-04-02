@@ -21,5 +21,13 @@
 - Date range aligned between news and stock data: both use last 7 days
 - yfinance fundamentals accessed via ticker.info (current snapshot, not historical)
 
+### What I did (continued)
+- Added __init__.py to agent/ and tests/ to make them importable packages
+- Wrote tests/test_tools.py with tests for all three tools
+- test_get_news: asserts list of dicts, length 10, title key present
+- test_stock_data: asserts dict with history (DataFrame) and fundamentals (dict) keys, marketCap present
+- test_analyze_sentiment: uses fake articles list, asserts list of dicts with label key
+- All 3 tests passing
+
 ### Blockers / questions
 - Next: build graph.py nodes and connect them in LangGraph, then add Groq LLM for summary node

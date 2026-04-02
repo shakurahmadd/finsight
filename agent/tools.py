@@ -40,7 +40,7 @@ def get_stock_data(ticker):
     Args:
         ticker
     Returns:
-        dictionary with stock history and fundementals
+        dictionary with stock history and fundamentals
     """
     ticker_obj = yf.Ticker(ticker)
     historical_data = ticker_obj.history(start= (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d'), 
@@ -48,16 +48,16 @@ def get_stock_data(ticker):
     historical_data = historical_data.drop(columns=['Open', 'Stock Splits'])
 
     info = ticker_obj.info
-    fundementals = {'marketCap' : info['marketCap'], 
+    fundamentals = {'marketCap' : info['marketCap'], 
                     'trailingPE': info['trailingPE'], 
                     'sector' : info['sector'], 
                     'longName' : info['longName']}
-    stock_data = {"history": historical_data, "fundementals" : fundementals}
+    stock_data = {"history": historical_data, "fundamentals" : fundamentals}
 
     return stock_data
 
     
-def alalyze_sentiment(articles):
+def analyze_sentiment(articles):
     """
     Takes top articles, encodes them performs inference on each article title
     Args: 
