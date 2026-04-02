@@ -38,6 +38,36 @@
 - Label mapping: 0=Bearish, 1=Bullish, 2=Neutral
 - Returns: list[dict] with 'title' and 'label' keys
 
+## Graph structure
+
+### Building the graph
+```python
+graph = StateGraph(AgentState)
+graph.add_node("name", function_reference)  # no () on function
+graph.set_entry_point("first_node")
+graph.add_edge("from_node", "to_node")
+app = graph.compile()
+```
+
+### Running the graph
+```python
+result = app.invoke({"ticker": "AAPL"})  # initial state
+result['summary']  # access final state fields
+```
+
+### Node pattern
+```python
+def some_node(state):
+    value = state['field']       # read from state
+    result = do_something(value) # do work
+    return {'field': result}     # return updated fields only
+```
+
+### LLM integration
+- ChatGroq loaded once at module level with model="llama-3.1-8b-instant"
+- Called via llm.invoke(prompt_string)
+- Response text accessed via response.content
+
 ## Environment / secrets
 - API keys stored in .env, loaded with python-dotenv
 - Never hardcode keys or paste them in chat

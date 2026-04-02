@@ -29,5 +29,19 @@
 - test_analyze_sentiment: uses fake articles list, asserts list of dicts with label key
 - All 3 tests passing
 
+### What I did (continued)
+- Built graph.py with four nodes: get_news_node, get_stock_data_node, analyze_sentiment_node, generate_summary_node
+- Connected nodes with fixed edges in LangGraph: get_news → get_stock_data → analyze_sentiment → generate_summary
+- Used StateGraph(AgentState) with set_entry_point and compile()
+- Added Groq LLM (llama-3.1-8b-instant) loaded once at top of graph.py
+- generate_summary_node builds an f-string prompt with ticker, articles, stock_data, sentiment and calls llm.invoke()
+- Tested end-to-end with app.invoke({"ticker": "AAPL"}) — produced a full research summary successfully
+
+### Decisions made (continued)
+- Groq ChatGroq model loaded once at module level — same reasoning as sentiment model
+- Nodes follow pattern: read from state → call tool → return updated fields dict
+- if __name__ == "__main__" guard used for manual testing — prevents graph execution on import
+- prompt uses f-string with triple quotes for multiline formatting
+
 ### Blockers / questions
-- Next: build graph.py nodes and connect them in LangGraph, then add Groq LLM for summary node
+- Phase 2 complete — next is Phase 3: FastAPI endpoints + PostgreSQL schema
