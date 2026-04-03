@@ -71,8 +71,8 @@ graph.add_edge("get_stock_data", "analyze_sentiment")
 graph.add_edge("analyze_sentiment", "generate_summary")
 
 # compile graph
-app = graph.compile()
+graph_app = graph.compile()
 
 if __name__ == "__main__":
-    result = app.invoke({"ticker" : "AAPL"})
+    result = graph_app.invoke({"ticker" : "AAPL"})
     print(result['summary'])
