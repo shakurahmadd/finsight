@@ -78,3 +78,72 @@ Store computed results so you don't recompute on repeated requests.
 
 ### What it is
 An ASGI web server that runs FastAPI apps and handles incoming HTTP requests. FastAPI defines the logic; uvicorn handles the networking layer.
+
+---
+
+## FastAPI Dependency Injection
+
+### What it is
+A way to declare shared logic (like DB sessions) that FastAPI runs automatically before each request.
+
+### Pattern
+```python
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.post("/route")
+def my_route(db: Session = Depends(get_db)):
+    # db is ready to use
+```
+
+### Why yield not return
+`yield` pauses the function — FastAPI runs the route, then resumes `get_db()` to hit `finally: db.close()`. Guarantees the session always closes even if the route crashes.
+
+---
+
+## Path Parameters
+
+### Pattern
+```python
+@app.get("/results/{ticker}")
+def get_results(ticker: str, ...):
+```
+FastAPI extracts `ticker` from the URL automatically when the parameter name matches the path placeholder.
+
+### vs Request Body
+- Path parameter: data in the URL — used for GET endpoints identifying a resource
+- Request body: data in POST body — used when sending structured input
+
+---
+
+## HTTPException
+
+### Pattern
+```python
+from fastapi import HTTPException
+
+raise HTTPException(status_code=404, detail="Not found")
+```
+FastAPI catches this and returns the appropriate HTTP error response automatically.
+
+---
+
+## Datetime Timezone Notes
+
+### timezone-naive vs timezone-aware
+- Naive: `datetime(2026, 4, 7, 12, 0)` — no timezone info
+- Aware: `datetime(2026, 4, 7, 12, 0, tzinfo=timezone.utc)` — knows it's UTC
+- Python refuses to subtract naive from aware — always use aware datetimes
+
+### Correct pattern (Python 3.9 compatible)
+```python
+from datetime import datetime, timezone
+datetime.now(timezone.utc)  # aware, works on Python 3.2+
+```
+
+### SQLAlchemy column
+Use `DateTime(timezone=True)` to store timezone-aware timestamps in PostgreSQL.
