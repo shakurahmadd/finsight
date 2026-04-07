@@ -19,4 +19,5 @@
 - Synchronous def used (not async) — acceptable for MVP, flagged as future improvement for production
 
 ### Blockers / questions
-- Phase 3 next: PostgreSQL schema + Alembic migrations + cache logic in /analyse + GET /results/{ticker} endpoint
+- PostgreSQL schema + Alembic migrations now complete (see db/log.md 2026-04-07)
+- Next: cache-aside logic in POST /analyse + GET /results/{ticker} endpoint
