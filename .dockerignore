@@ -1,0 +1,8 @@
+.git/
+venv/
+tests/
+ml/
+.env
+.pytest_cache/
+docker/
+README.md
