@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DB_URL: postgresql://shakurahmad:postgres@localhost:5432/finsight
+      NEWS_API: ${{ secrets.NEWS_API }}
     services:
       postgres:
         image: postgres:15
