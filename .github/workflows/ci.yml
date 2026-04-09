@@ -1,0 +1,32 @@
+name: CI
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: postgresql://shakurahmad:postgres@localhost:5432/finsight
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: shakurahmad
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: finsight
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - run: pip install -r requirements.txt
+      - run: |
+          until pg_isready -h localhost -p 5432; do 
+            echo "Waiting for database..."
+            sleep 1
+          done
+      - run: alembic upgrade head
+      - run: pytest tests
+    
+
