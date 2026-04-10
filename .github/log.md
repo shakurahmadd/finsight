@@ -20,3 +20,27 @@
 
 ### Blockers / questions
 - Next: deploy to AWS EC2
+
+## 2026-04-09 / 2026-04-10
+
+### What I did
+- Launched AWS EC2 t3.micro instance (Amazon Linux 2023, free tier)
+- Installed Docker, docker-compose v2.24.0, and git on the server
+- Cloned repo from GitHub onto the server
+- Created .env on the server with secrets
+- Fixed pg_isready missing — added postgresql-client to Dockerfile
+- Opened port 8000 in EC2 security group
+- App fully deployed and accessible at http://13.48.106.201:8000/docs
+
+### Decisions made
+- t3.micro chosen — free tier eligible in eu-north-1 region
+- Amazon Linux 2023 — AWS-optimised, lightweight
+- Key pair (finsight.pem) stored in ~/.ssh/ with chmod 400 — SSH authentication
+- docker-compose v2.24.0 installed manually — v5 required newer buildx not available on Amazon Linux
+- postgresql-client installed in Dockerfile — provides pg_isready for the readiness loop
+- Port 8000 opened in security group inbound rules — required for external access
+- Secrets (.env) created directly on server — never committed to git
+- docker-compose up -d — detached mode keeps app running after SSH session ends
+
+### Blockers / questions
+- MVP complete
