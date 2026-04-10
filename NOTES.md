@@ -4,7 +4,13 @@
 
 ## Interview Questions
 
-*Built up throughout V2. Each entry covers: the question → the decision made → why → what the alternative was and why it was rejected. 
+*Built up throughout V2. Each entry covers: the question → the decision made → why → what the alternative was and why it was rejected.*
+
+---
+
+**Q: Why did you implement the ReAct pattern manually rather than using LangGraph's `create_react_agent` constructor?**
+
+Building the graph manually gives us full control over the agent node. In V2 we're implementing DK-CoT (Domain Knowledge Chain-of-Thought) — before the LLM reasons about a stock, we retrieve relevant sector benchmarks and macroeconomic indicators from the database and inject them into the prompt. This means the agent node needs to be customised on every invocation based on the ticker's sector. `create_react_agent` handles the agent node internally as a black box — you get a working ReAct graph in one line but you can't modify what the LLM sees on each reasoning step. Building it manually means we own every component and can extend it without fighting the framework.
 
 ---
 
@@ -62,29 +68,55 @@ Converts raw text to token IDs and attention masks. `input_ids`: integer token I
 
 **Key concepts:**
 - **Graph**: nodes connected by edges, state flows through
-- **State**: TypedDict shared between all nodes — each node reads from and writes to it
-- **Nodes**: Python functions that take state and return updated state dict
-- **Edges**: define execution order (fixed = deterministic pipeline, conditional = ReAct agent)
+- **State**: the shared data structure passed between all nodes
+- **Nodes**: Python functions that take state and return updated state
+- **Edges**: fixed (always go to next node) or conditional (LLM decides)
+- **MessagesState**: pre-built LangGraph state with a single `messages` key — a list of HumanMessage, AIMessage, and ToolMessage objects
 
-**V1 is a fixed pipeline** — not truly agentic. V2 fixes this with a proper ReAct pattern where the LLM decides which tools to call and loops until it has enough to produce a final answer.
+**V1 (linear pipeline):** fixed edges, LLM only at the end for summarisation. Not truly agentic.
 
-**Building the graph:**
+**V2 (ReAct pattern):** LLM sits in the agent node, decides which tools to call, loops until it has enough to produce a final answer.
+
+**ReAct graph structure:**
 ```python
-graph = StateGraph(AgentState)
-graph.add_node("name", function_reference)
-graph.set_entry_point("first_node")
-graph.add_edge("from_node", "to_node")
-app = graph.compile()
-result = app.invoke({"ticker": "AAPL"})
+from langgraph.graph import StateGraph, MessagesState
+from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_core.messages import HumanMessage
+
+tools = [get_news, get_stock_data, analyze_sentiment]
+llm_with_tools = llm.bind_tools(tools)
+
+def agent_node(state):
+    messages = state['messages']
+    response = llm_with_tools.invoke(messages)
+    return {'messages': response}
+
+graph = StateGraph(MessagesState)
+graph.add_node("agent", agent_node)
+graph.add_node("tools", ToolNode(tools))
+graph.set_entry_point("agent")
+graph.add_conditional_edges("agent", tools_condition)  # → tools or END
+graph.add_edge("tools", "agent")  # always loop back to LLM
+graph_app = graph.compile()
+
+result = graph_app.invoke({"messages": [HumanMessage(content="Analyse: AAPL")]})
+print(result['messages'][-1].content)
 ```
 
-**Node pattern:**
-```python
-def some_node(state):
-    value = state['field']
-    result = do_something(value)
-    return {'field': result}
-```
+**MessagesState message types:**
+- `HumanMessage` — initial input from the user
+- `AIMessage` — LLM response (tool call request or final answer)
+- `ToolMessage` — result of a tool execution
+
+**`@tool` decorator:** wraps a function so the LLM knows it exists and can request it. The docstring becomes the tool description — the LLM reads it to decide when to use the tool. After decoration, call with `.invoke({"param": value})` not directly.
+
+**`bind_tools(tools)`:** attaches tool schemas (name, description, parameters) to the LLM so it can request them in its responses.
+
+**`ToolNode`:** pre-built node that executes whatever tool the LLM requested and adds the result as a ToolMessage.
+
+**`tools_condition`:** pre-built conditional edge function — checks last message, routes to `"tools"` if LLM made a tool call, routes to `END` if LLM produced a final answer.
+
+**Why build manually instead of `create_react_agent`:** DK-CoT in Phase 1 requires customising the agent node to inject domain knowledge into the prompt. `create_react_agent` hides the internals and can't be customised.
 
 ---
 

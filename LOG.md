@@ -166,6 +166,34 @@
 
 ---
 
-## V1 Known Issues (to fix in Phase 0 of V2)
-- Dockerfile layer order: dependencies installed after COPY — should be before to exploit layer caching
-- docker-compose restart policy: containers do not restart on server reboot — add `restart: unless-stopped`
+---
+
+## V2 Phase 0 — V1 Fixes
+
+### 2026-04-10
+- Fixed Dockerfile layer order: COPY requirements.txt first, run all pip installs, then COPY . /app — dependencies now cached independently of code changes
+- Added `restart: unless-stopped` to both services in docker-compose.yml — containers now restart automatically on server reboot
+- Redeployed to EC2 — confirmed working
+
+---
+
+## V2 Phase 1 — ReAct Agent Refactor
+
+### 2026-04-10
+- Created `v2-phase1` git branch — V2 development isolated from deployed main
+- Refactored `agent/graph.py` from linear pipeline to proper ReAct pattern:
+  - Replaced `AgentState` TypedDict with `MessagesState` — state is now a single messages list
+  - Replaced four node functions with a single `agent_node` that calls `llm_with_tools`
+  - Added `ToolNode` to handle tool execution automatically
+  - Added `tools_condition` conditional edge — routes to tools or END based on LLM output
+  - Added unconditional edge from tools back to agent to close the loop
+- Decorated all three tools with `@tool` in `agent/tools.py` — LLM can now request them by name
+- Changed `analyze_sentiment` to accept `list[str]` (titles) instead of full article objects — full article objects were too large for Groq to serialize as tool call arguments
+- Updated tests to use `.invoke()` and `.invoke({"titles": ...})` — required after `@tool` decoration
+- Tested end-to-end: LLM called get_news → extracted titles → called analyze_sentiment → called get_stock_data → produced summary
+- All 3 tests passing, CI green on v2-phase1 branch
+
+**Key decisions:**
+- Built ReAct pattern manually rather than using `create_react_agent` — DK-CoT in later phases requires customising the agent node, which isn't possible with the pre-built constructor
+- `analyze_sentiment` accepts titles not articles — keeps the tool simple and avoids Groq payload size errors
+- Branching strategy: each V2 phase on its own branch, merge to main when complete and tested
