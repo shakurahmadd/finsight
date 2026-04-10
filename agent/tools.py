@@ -7,6 +7,7 @@ import torch
 import yfinance as yf
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
+from langchain_core.tools import tool
 
 load_dotenv()
 news_api = os.getenv("NEWS_API")
@@ -16,6 +17,7 @@ peft_model = PeftModel.from_pretrained(base_model, "shakurahmad/finsight-distilb
 tokenizer = AutoTokenizer.from_pretrained("shakurahmad/finsight-distilbert")
 
 
+@tool
 def get_news(ticker):
     """
     Takes in user ticker and finds top 
@@ -34,6 +36,7 @@ def get_news(ticker):
     return all_articles['articles']
 
 
+@tool
 def get_stock_data(ticker):
     """
     Takes ticker value and collects relevant stock data from yfinance
@@ -56,16 +59,15 @@ def get_stock_data(ticker):
 
     return stock_data
 
-    
-def analyze_sentiment(articles):
+@tool  
+def analyze_sentiment(titles: list[str]) -> list[dict]:
     """
-    Takes top articles, encodes them performs inference on each article title
-    Args: 
-        article as a dictionary
+    Takes a list of article title strings and returns sentiment labels.
+    Args:
+        titles: list of article title strings
     Returns:
-        title sentimets as a dictionary of title:label pairs
+        list of dicts with title and sentiment label
     """
-    titles = [article['title'] for article in articles]
     encoded_titles = tokenizer(titles, padding=True, truncation=True, max_length=128, return_tensors='pt')
     attention_mask = encoded_titles['attention_mask']
     input_ids = encoded_titles['input_ids']
