@@ -2,6 +2,12 @@
 
 ---
 
+## Interview Questions
+
+*Built up throughout V2. Each entry covers: the question → the decision made → why → what the alternative was and why it was rejected. 
+
+---
+
 ## LoRA (Low-Rank Adaptation)
 
 Instead of updating a weight matrix W directly, LoRA learns two small matrices A and B where the update is A × B. If W is 768×768 (589K params), and A is 768×r and B is r×768, you only train 2×768×r params. At rank r=8: 12,288 params vs 589,824 — ~48x fewer. Original weights are frozen; only A and B are trained.

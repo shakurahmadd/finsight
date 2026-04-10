@@ -1,5 +1,6 @@
 services:
   app:
+    restart: unless-stopped
     build: .
     ports:
       - "8000:8000"
@@ -11,6 +12,7 @@ services:
       - DB_URL=postgresql://shakurahmad:postgres@db:5432/finsight
 
   db:
+    restart: unless-stopped
     image: postgres:15
     environment:
       - POSTGRES_USER=shakurahmad
