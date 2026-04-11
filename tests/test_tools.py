@@ -14,7 +14,7 @@ def test_stock_data():
     assert isinstance(result, dict)
     assert 'history' in result.keys()
     assert 'fundamentals' in result.keys()
-    assert isinstance(result['history'], DataFrame)
+    assert isinstance(result['history'], list)
     assert isinstance(result['fundamentals'], dict)
     assert 'marketCap' in result['fundamentals'].keys()
 
