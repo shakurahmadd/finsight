@@ -8,9 +8,13 @@ import yfinance as yf
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
 from langchain_core.tools import tool
+from edgar import Company, set_identity                                                                                                                   
+
 
 load_dotenv()
 news_api = os.getenv("NEWS_API")
+
+set_identity("Shakur Ahmad shakurahmadd@gmail.com")
 
 base_model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased", num_labels=3)
 peft_model = PeftModel.from_pretrained(base_model, "shakurahmad/finsight-distilbert")
@@ -84,5 +88,39 @@ def analyze_sentiment(titles: list[str]) -> list[dict]:
 
 
     
+@tool
+def get_sec_filings(ticker):
+    """
+    Takes a company ticker and grabs its most recent 10-K, 8-K and Form 4
+    Args:
+        Ticker: company ticker as a string
+    Returns: 
+        A dictionary contining, management discussion and risk factors from the 10-K.
+        The 8-K text and insider trading records from Form 4. 
+    """
+    c = Company(ticker)
+    ten_k = c.get_filings(form='10-K').latest().obj()
+
+    try:
+        eight_k = c.get_filings(form='8-K').latest().obj()
+    except:
+        eight_k = None
+        print(f'8K form missing for {c}')
+
+    try:
+        form_4 = c.get_filings(form='4').latest().obj()
+    except:
+        form_4 = None
+        print(f'4K form missing for {c}')
+ 
+
+    sec_dict = {
+        'management_discussion' : ten_k.management_discussion[:3000],
+        'risk_factors' : ten_k.risk_factors[:3000],
+        'eight_k': eight_k.text()[:3000] if eight_k else "No recent 8-K found",
+        'insider_traders' : form_4.market_trades.to_dict(orient='records') if form_4 else "No recent Form 4 found"
+    }
+    return sec_dict
+
 
 

@@ -1,4 +1,4 @@
-from agent.tools import get_news, get_stock_data, analyze_sentiment
+from agent.tools import get_news, get_stock_data, analyze_sentiment, get_sec_filings
 from dotenv import load_dotenv
 import os
 from langchain_groq import ChatGroq
@@ -12,7 +12,7 @@ load_dotenv()
 groq_key = os.getenv("GROQ_API")
 llm = ChatGroq(model="llama-3.1-8b-instant", api_key=groq_key)
 
-tools = [get_news, get_stock_data, analyze_sentiment]
+tools = [get_news, get_stock_data, analyze_sentiment, get_sec_filings]
 
 llm_with_tools = llm.bind_tools(tools)
 

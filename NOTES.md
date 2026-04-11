@@ -8,6 +8,18 @@
 
 ---
 
+**Q: Why did V1 use a fixed linear pipeline instead of a ReAct agent from the start?**
+
+In V1 there were only three tools and all of them were always needed to produce a meaningful summary — news, stock data, and sentiment. There was no conditional logic to implement. A ReAct agent would have added architectural complexity with no benefit since the LLM would have called the same three tools in the same order every time. V2 introduces EDGAR filings, anomaly detection, and domain knowledge retrieval — tools that aren't always needed. If sentiment is already strong and clear, there may be no reason to check SEC filings. If there are no recent insider trades, Form 4 analysis adds nothing. A ReAct agent can reason about what signal it already has and decide whether additional tool calls are justified. That conditional reasoning is where the agentic pattern earns its complexity.
+
+---
+
+**Q: You added an SEC EDGAR tool to your LangGraph agent. Walk me through how it works, how you handled the token budget problem, and why you used `try/except` for 8-K and Form 4 but not for 10-K.**
+
+The tool uses edgartools to fetch the three most relevant SEC filings for a given ticker. For the 10-K it extracts the MD&A and Risk Factors sections directly as strings. For the 8-K it extracts the full filing text. For Form 4 it reads the `market_trades` DataFrame and converts it to a list of dicts the LLM can interpret. The token budget is handled with simple truncation — each section is capped at 3,000 characters. This is a pragmatic starting point; the plan is to extend it to RAG if truncation proves lossy in practice. The 10-K is not wrapped in `try/except` because every public company files one annually — it is mandatory. 8-K and Form 4 are event-driven: an 8-K only exists when a material event has occurred, and a Form 4 only exists when an insider has recently traded. Their absence is normal, not an error, so the tool returns a fallback string rather than crashing.
+
+---
+
 **Q: Why did you implement the ReAct pattern manually rather than using LangGraph's `create_react_agent` constructor?**
 
 Building the graph manually gives us full control over the agent node. In V2 we're implementing DK-CoT (Domain Knowledge Chain-of-Thought) — before the LLM reasons about a stock, we retrieve relevant sector benchmarks and macroeconomic indicators from the database and inject them into the prompt. This means the agent node needs to be customised on every invocation based on the ticker's sector. `create_react_agent` handles the agent node internally as a black box — you get a working ReAct graph in one line but you can't modify what the LLM sees on each reasoning step. Building it manually means we own every component and can extend it without fighting the framework.
@@ -193,6 +205,38 @@ alembic downgrade -1                          # roll back last migration
 `alembic_version` table in PostgreSQL tracks which migrations have been applied — running `upgrade head` twice is safe.
 
 **env.py must have:** DB_URL loaded from .env (never hardcoded), `target_metadata = Base.metadata`, all models imported so Base.metadata is populated.
+
+---
+
+## edgartools (SEC EDGAR)
+
+Free Python library wrapping the SEC EDGAR API. No API key needed — only requires identity registration.
+
+**Identity:** `set_identity("Name email@example.com")` — called once at module level. Registers with EDGAR so SEC can contact you if you abuse the rate limit. Not a secret, does not go in `.env`.
+
+**Key pattern:**
+```python
+from edgar import Company, set_identity
+set_identity("Name email@example.com")
+
+c = Company("AAPL")
+ten_k = c.get_filings(form="10-K").latest().obj()   # TenK object
+eight_k = c.get_filings(form="8-K").latest().obj()  # EightK object
+form_4 = c.get_filings(form="4").latest().obj()     # Ownership object
+```
+
+**TenK attributes:** `management_discussion` (str), `risk_factors` (str), `financials`, `income_statement`, `balance_sheet`
+
+**EightK attributes:** `text()` (callable, returns full filing as str), `items`, `has_press_release`
+
+**Form 4 attributes:** `market_trades` (DataFrame — Date, Shares, Price, AcquiredDisposed, TransactionType), `reporting_owners`, `shares_traded`
+
+**Token budget:** Sections are plain strings and can be long (MD&A = 20,000–50,000 words). Truncate with `[:3000]` for now. RAG is the proper solution but deferred.
+
+**Watch-outs:**
+- `eight_k.text` is a method — call it as `eight_k.text()`, not `eight_k.text`
+- 8-K and Form 4 are event-driven — wrap in `try/except`, return fallback string if missing. 10-K is mandatory annually so no fallback needed
+- `market_trades.to_dict(orient='records')` converts DataFrame to list of dicts — required for LLM serialisation
 
 ---
 

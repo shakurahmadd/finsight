@@ -1,4 +1,4 @@
-from agent.tools import get_news, get_stock_data, analyze_sentiment
+from agent.tools import get_news, get_stock_data, analyze_sentiment, get_sec_filings
 from pandas import DataFrame
 
 def test_get_news():
@@ -28,3 +28,11 @@ def test_analyze_sentiment():
     assert isinstance(result, list)
     assert isinstance(result[0], dict)
     assert 'label' in result[0].keys()
+
+def test_sec_filings():
+    result = get_sec_filings.invoke('AAPL')
+    assert "management_discussion" in result
+    assert "risk_factors" in result
+    assert "insider_traders" in result
+    assert "eight_k" in result
+    assert isinstance(result, dict)

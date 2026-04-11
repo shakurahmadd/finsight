@@ -197,3 +197,18 @@
 - Built ReAct pattern manually rather than using `create_react_agent` — DK-CoT in later phases requires customising the agent node, which isn't possible with the pre-built constructor
 - `analyze_sentiment` accepts titles not articles — keeps the tool simple and avoids Groq payload size errors
 - Branching strategy: each V2 phase on its own branch, merge to main when complete and tested
+
+### 2026-04-11
+- Explored edgartools API: `Company(ticker).get_filings(form=...).latest().obj()` returns typed objects per form type
+- `TenK` object exposes `management_discussion` and `risk_factors` as plain strings
+- `EightK` object exposes `text()` as a callable returning the full filing text
+- `Form4` object exposes `market_trades` as a pandas DataFrame with columns: Date, Shares, Price, AcquiredDisposed, TransactionType
+- Built `get_sec_filings` tool in `agent/tools.py` — fetches 10-K, 8-K, and Form 4 for a given ticker
+- Added `set_identity` at module level — required by edgartools to identify the caller to the SEC API, runs once on import
+- Added `get_sec_filings` to tools list in `agent/graph.py` — agent now has 4 tools
+- Added `test_sec_filings` to `tests/test_tools.py` — all 4 tests passing
+
+**Key decisions:**
+- Direct section extraction from 10-K — `management_discussion` and `risk_factors` truncated to 3000 chars. RAG deferred — targeted section extraction keeps token usage bounded enough for now
+- `eight_k` and `form_4` wrapped in `try/except` with graceful fallback — both are event-driven filings that only exist when a material event or insider trade has occurred. Their absence is expected, not an error. 10-K is mandatory annually so it is not wrapped
+- `market_trades` DataFrame converted with `to_dict(orient='records')` — returns a list of dicts, one per trade row, which the LLM can read as a list of transactions
