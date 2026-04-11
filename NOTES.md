@@ -239,6 +239,8 @@ form_4 = c.get_filings(form="4").latest().obj()     # Ownership object
 
 **Token budget:** Sections are plain strings and can be long (MD&A = 20,000–50,000 words). Truncate with `[:3000]` for now. RAG is the proper solution but deferred.
 
+**DK-CoT known limitation:** Injection does not fire on the first `agent_node` call because no ToolMessage exists yet — `sector` is only detected after `get_stock_data` runs. The LLM reasons without domain knowledge on pass 1. Future improvement: extract the ticker from the HumanMessage on pass 1 and pre-fetch the sector directly via yfinance before the LLM is invoked, so DK-CoT is available from the first pass.
+
 **Watch-outs:**
 - `eight_k.text` is a method — call it as `eight_k.text()`, not `eight_k.text`
 - 8-K and Form 4 are event-driven — wrap in `try/except`, return fallback string if missing. 10-K is mandatory annually so no fallback needed

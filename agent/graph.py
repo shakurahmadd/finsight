@@ -5,7 +5,6 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.messages import HumanMessage, ToolMessage, SystemMessage
-import ast
 import json
 from db.database import SessionLocal
 from db.models import DkKnowledge, SectorMacroMapping, MacroIndicator
@@ -13,13 +12,11 @@ from db.models import DkKnowledge, SectorMacroMapping, MacroIndicator
 load_dotenv()
 
 groq_key = os.getenv("GROQ_API")
-llm = ChatGroq(model="llama-3.1-8b-instant", api_key=groq_key)
+llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_key)
 
 tools = [get_news, get_stock_data, analyze_sentiment, get_sec_filings]
 
 llm_with_tools = llm.bind_tools(tools)
-
-session = SessionLocal()
 
 def agent_node(state):
     messages = state['messages']
@@ -30,26 +27,30 @@ def agent_node(state):
             sector = message_to_dict['fundamentals']['sector']
             break
     if sector:
-        sector_benchmarks = session.query(DkKnowledge).filter(DkKnowledge.sector == sector).all()
-        macro_mappings = session.query(SectorMacroMapping).filter(SectorMacroMapping.sector == sector).all()
+        session = SessionLocal()
+        try:
+            sector_benchmarks = session.query(DkKnowledge).filter(DkKnowledge.sector == sector).all()
+            macro_mappings = session.query(SectorMacroMapping).filter(SectorMacroMapping.sector == sector).all()
 
-        indicator_ids = [m.indicator_id for m in macro_mappings]
-        macro_indicators = session.query(MacroIndicator).filter(MacroIndicator.id.in_(indicator_ids)).all()
+            indicator_ids = [m.indicator_id for m in macro_mappings]
+            macro_indicators = session.query(MacroIndicator).filter(MacroIndicator.id.in_(indicator_ids)).all()
 
-        # system prompt string
-        prompt = f"You are a financial research analyst. Use the following domain knowledge to ground your reasoning:\n\nSector Benchmarks ({sector}):\n"
+            # system prompt string
+            prompt = f"You are a financial research analyst. Use the following domain knowledge to ground your reasoning:\n\nSector Benchmarks ({sector}):\n"
 
-        # append sector benchmarks
-        for b in sector_benchmarks:
-            prompt += f"- {b.metric_name}: avg={b.sector_avg}, upper={b.upper_threshold}, lower={b.lower_threshold}\n"
+            # append sector benchmarks
+            for b in sector_benchmarks:
+                prompt += f"- {b.metric_name}: avg={b.sector_avg}, upper={b.upper_threshold}, lower={b.lower_threshold}\n"
 
-        # append macro indicators
-        prompt += f"\nMacro Indicators:\n"
-        for m in macro_indicators:
-            prompt += f"- {m.indicator_name}: {m.current_value} (change: {m.change})\n"
-        
-        messages = [SystemMessage(content=prompt)] + messages
-        
+            # append macro indicators
+            prompt += f"\nMacro Indicators:\n"
+            for m in macro_indicators:
+                prompt += f"- {m.indicator_name}: {m.current_value} (change: {m.change})\n"
+
+            messages = [SystemMessage(content=prompt)] + messages
+        finally:
+            session.close()
+
     response = llm_with_tools.invoke(messages)
     return {'messages' : response}
 
