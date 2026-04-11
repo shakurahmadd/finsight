@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float
 from db.database import Base
 from datetime import datetime, timezone
 
@@ -20,4 +20,31 @@ class AnalysisResult(Base):
     summary = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), default = lambda: datetime.now(timezone.utc), nullable=False)
 
+class DkKnowledge(Base):
+    __tablename__ = "dk_knowledge"
 
+    id = Column(Integer, primary_key=True)
+    sector = Column(String, nullable=False)
+    metric_name = Column(String, nullable=False)
+    sector_avg = Column(Float, nullable=False)
+    std_dev = Column(Float, nullable=False)
+    upper_threshold = Column(Float, nullable=False)
+    lower_threshold = Column(Float, nullable=False)
+    importance = Column(Float, nullable=False)
+
+class MacroIndicator(Base):
+    __tablename__ = 'macro_indicator'
+
+    id = Column(Integer, primary_key=True)
+    indicator_name = Column(String, nullable=False)
+    current_value = Column(Float, nullable=False)
+    change = Column(Float, nullable=False)
+    time_stamp = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc), nullable=False)
+    importance = Column(Float, nullable=False)
+
+
+class SectorMacroMapping(Base):
+    __tablename__ = 'sector_macro_map'
+    
+    sector = Column(String, primary_key=True)
+    indicator_id = Column(Integer, primary_key=True)
