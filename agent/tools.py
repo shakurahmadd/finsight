@@ -22,7 +22,7 @@ tokenizer = AutoTokenizer.from_pretrained("shakurahmad/finsight-distilbert")
 
 
 @tool
-def get_news(ticker):
+def get_news(ticker: str):
     """
     Takes in user ticker and finds top 
     10 articles about the stock
@@ -41,7 +41,7 @@ def get_news(ticker):
 
 
 @tool
-def get_stock_data(ticker):
+def get_stock_data(ticker: str):
     """
     Takes ticker value and collects relevant stock data from yfinance
     Args:
@@ -59,7 +59,7 @@ def get_stock_data(ticker):
                     'trailingPE': info['trailingPE'], 
                     'sector' : info['sector'], 
                     'longName' : info['longName']}
-    stock_data = {"history": historical_data, "fundamentals" : fundamentals}
+    stock_data = {"history": historical_data.to_dict(orient='records'), "fundamentals" : fundamentals}
 
     return stock_data
 
@@ -89,7 +89,7 @@ def analyze_sentiment(titles: list[str]) -> list[dict]:
 
     
 @tool
-def get_sec_filings(ticker):
+def get_sec_filings(ticker: str):
     """
     Takes a company ticker and grabs its most recent 10-K, 8-K and Form 4
     Args:

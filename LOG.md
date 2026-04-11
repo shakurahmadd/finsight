@@ -208,6 +208,24 @@
 - Added `get_sec_filings` to tools list in `agent/graph.py` — agent now has 4 tools
 - Added `test_sec_filings` to `tests/test_tools.py` — all 4 tests passing
 
+### 2026-04-11 (continued)
+- Added three new SQLAlchemy models: `DkKnowledge`, `MacroIndicator`, `SectorMacroMapping`
+- Generated and applied Alembic migration — all three tables created in PostgreSQL
+- Built `db/seed.py` with idempotency checks (`if count == 0`) for all three tables
+- Seeded `dk_knowledge` with 25 rows across 5 sectors (Technology, Financials, Energy, Consumer, Healthcare) — 5 metrics each: pe_ratio, pb_ratio, revenue_growth, profit_margin, debt_to_equity
+- Seeded `macro_indicators` with 5 FRED indicators: federal_funds_rate, cpi_inflation, gdp_growth, unemployment_rate, ten_year_treasury
+- Seeded `sector_macro_mapping` with 10 rows linking each sector to 2 relevant macro indicators
+- Implemented DK-CoT injection in `agent_node` in `agent/graph.py`:
+  - Searches messages for ToolMessage containing "sector" (from `get_stock_data` output)
+  - Parses JSON content with `json.loads()` to extract sector string
+  - Queries `dk_knowledge`, `sector_macro_mapping`, and `macro_indicators` from PostgreSQL
+  - Builds system prompt with sector benchmarks and macro indicators
+  - Prepends `SystemMessage` to messages before LLM invocation
+- Fixed `get_stock_data` to convert DataFrame to `to_dict(orient='records')` — required for JSON serialisation in ToolMessage
+- Added type annotations to `get_news`, `get_stock_data`, `get_sec_filings` — required for Groq tool schema validation
+- Tested end-to-end: agent reasoning now references sector benchmarks and macro context
+- All 4 tests passing
+
 **Key decisions:**
 - Direct section extraction from 10-K — `management_discussion` and `risk_factors` truncated to 3000 chars. RAG deferred — targeted section extraction keeps token usage bounded enough for now
 - `eight_k` and `form_4` wrapped in `try/except` with graceful fallback — both are event-driven filings that only exist when a material event or insider trade has occurred. Their absence is expected, not an error. 10-K is mandatory annually so it is not wrapped
