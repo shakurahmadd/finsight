@@ -15,4 +15,4 @@ alembic
 uvicorn
 sqlalchemy
 pytest
-edgartools
+edgartools==3.8.0
