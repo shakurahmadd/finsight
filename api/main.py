@@ -1,22 +1,33 @@
 from fastapi import FastAPI, Depends, HTTPException
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from agent.graph import graph_app
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import AnalysisResult
-
+from db.models import AnalysisResult, Watchlist, SentimentHistory
+from sqlalchemy.exc import IntegrityError
 
 # build pydantic models for request and response
 class AnalyseRequest(BaseModel):
     ticker : str
 
 
-
 class AnalyseResponse(BaseModel):
     ticker : str
     summary : str
     timestamp : datetime
+
+
+class WatchlistRequest(BaseModel):
+    ticker : str
+
+class SentimentHistoryResponse(BaseModel):
+    # tells Pydantic it can read attributes from a SQLAlchemy object directly
+    model_config = ConfigDict(from_attributes=True)
+    ticker : str
+    date : datetime
+    sentiment_score : float
+   
 
 
 app = FastAPI()
@@ -52,4 +63,39 @@ def get_results(ticker: str, db: Session = Depends(get_db)):
         return AnalyseResponse(ticker = ticker, summary=check.summary, timestamp=check.timestamp)
 
 
-        
+
+@app.post("/watchlist", status_code=201)
+def add_to_watchlist(request : WatchlistRequest, db : Session = Depends(get_db)):
+    try:
+        new_watchlist_item = Watchlist(ticker = request.ticker)
+        db.add(new_watchlist_item)
+        db.commit()
+        return f"{request.ticker} has been added to the watchlist."
+    except IntegrityError:
+        db.rollback()
+        # conflict
+        raise HTTPException(status_code=409, detail=f"{request.ticker} is already in the watchlist.")
+
+
+@app.delete("/watchlist/{ticker}")
+def delete_from_wishlist(ticker: str, db: Session = Depends(get_db)):
+    row = db.query(Watchlist).filter(Watchlist.ticker == ticker).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"{ticker} is not in the watchlist.")
+    else:
+        db.delete(row)
+        db.commit()
+        return f"{ticker} removed from the watchlist."
+
+    
+@app.get("/sentiment/history/{ticker}", response_model=list[SentimentHistoryResponse])
+def get_sentiment_history(ticker: str, db: Session = Depends(get_db)):
+    cutoff = datetime.now() - timedelta(days=30)
+
+    get_rows = db.query(SentimentHistory)\
+        .filter(SentimentHistory.ticker == ticker)\
+            .filter(SentimentHistory.date >= cutoff)\
+                .order_by(SentimentHistory.date.asc())\
+                .all()
+
+    return get_rows

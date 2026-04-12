@@ -14,6 +14,12 @@ In V1 there were only three tools and all of them were always needed to produce 
 
 ---
 
+**Q: Walk me through the POST /watchlist endpoint — what does it do, how does it handle duplicates, and why did you use a 409 status code instead of returning a 200?**
+
+`POST /watchlist` accepts a ticker string in the request body via a Pydantic model. It opens a DB session via FastAPI dependency injection, creates a `Watchlist` ORM object, and attempts to commit it. Since `ticker` is the primary key, inserting a duplicate raises a SQLAlchemy `IntegrityError` — the endpoint catches this, rolls back the session, and raises an `HTTPException` with status code 409. The reason for 409 over a 200 with a message string is that HTTP status codes are machine-readable — a frontend or API client can branch on `response.status_code == 409` without parsing text. A 200 with "already exists" in the body requires the client to interpret a string, which is fragile and non-standard.
+
+---
+
 **Q: You implemented DK-CoT in your LangGraph agent. Walk me through how it works — how does the agent know which sector to use, how do you retrieve the relevant data, and how does it get into the prompt?**
 
 The agent node runs in a loop as part of the ReAct pattern. On the first pass, only the human message exists — no sector is known yet, so the LLM is invoked normally and decides which tools to call. Once the LLM calls `get_stock_data`, the result is added to the messages as a ToolMessage containing the fundamentals dict serialised as JSON, which includes the sector field. On subsequent passes, `agent_node` searches through `state['messages']` for any ToolMessage where `"sector"` appears in the content. When found, it parses the JSON with `json.loads()` and extracts the sector string. It then queries three PostgreSQL tables: `dk_knowledge` filtered by sector for benchmark metrics (P/E, P/B, profit margin etc.), `sector_macro_mapping` to find which macro indicator IDs are relevant to that sector, and `macro_indicators` to fetch those rows using a SQLAlchemy `in_()` query. The benchmark and macro data is formatted into a system prompt string and prepended to the messages as a `SystemMessage` before the LLM is invoked. The LLM then reasons against real sector benchmarks and current macro conditions rather than from general knowledge alone — which is the core idea from the DK-CoT paper.

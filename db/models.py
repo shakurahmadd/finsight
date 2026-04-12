@@ -45,6 +45,22 @@ class MacroIndicator(Base):
 
 class SectorMacroMapping(Base):
     __tablename__ = 'sector_macro_map'
-    
+
     sector = Column(String, primary_key=True)
     indicator_id = Column(Integer, primary_key=True)
+
+
+class Watchlist(Base):
+    __tablename__ = 'watch_list'
+
+    ticker = Column(String, primary_key=True)
+
+
+class SentimentHistory(Base):
+    __tablename__ = 'sentiment_history'
+
+    ticker = Column(String, primary_key=True)
+    date = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc), primary_key=True)
+    sentiment_score = Column(Float, nullable=False)
+    
+

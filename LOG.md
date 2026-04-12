@@ -230,3 +230,23 @@
 - Direct section extraction from 10-K — `management_discussion` and `risk_factors` truncated to 3000 chars. RAG deferred — targeted section extraction keeps token usage bounded enough for now
 - `eight_k` and `form_4` wrapped in `try/except` with graceful fallback — both are event-driven filings that only exist when a material event or insider trade has occurred. Their absence is expected, not an error. 10-K is mandatory annually so it is not wrapped
 - `market_trades` DataFrame converted with `to_dict(orient='records')` — returns a list of dicts, one per trade row, which the LLM can read as a list of transactions
+
+---
+
+## V2 Phase 2 — Sentiment Momentum + Scheduled Jobs
+
+### 2026-04-12
+- Pre-Phase 2 fixes applied to agent/graph.py: upgraded LLM from llama-3.1-8b-instant to llama-3.3-70b-versatile, replaced global SessionLocal() with per-request session inside agent_node using try/finally pattern
+- Added two new SQLAlchemy models: `Watchlist` (ticker primary key) and `SentimentHistory` (composite primary key: ticker + date, sentiment_score Float)
+- Generated and applied Alembic migration — both tables created in PostgreSQL
+- Built three new FastAPI endpoints:
+  - `POST /watchlist` — adds ticker to watchlist, returns 409 on duplicate via IntegrityError catch
+  - `DELETE /watchlist/{ticker}` — removes ticker, returns 404 if not found
+  - `GET /sentiment/history/{ticker}` — returns last 30 days of sentiment scores ordered by date ascending
+- Created `SentimentHistoryResponse` Pydantic model with `model_config = ConfigDict(from_attributes=True)` — required for Pydantic v2 to read SQLAlchemy ORM objects directly
+- Tested all three endpoints via Swagger — all working
+
+**Key decisions:**
+- `ticker` is the primary key on `Watchlist` — enforces uniqueness at the DB level, `IntegrityError` on duplicate insert maps to 409 Conflict
+- 409 over 200 with message — HTTP status codes are machine-readable; a frontend can branch on status code without parsing response text
+- `SentimentHistory` composite primary key on `(ticker, date)` — enforces one row per ticker per day at the DB level, enabling idempotent inserts via ON CONFLICT
