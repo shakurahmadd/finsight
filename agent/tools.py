@@ -79,11 +79,13 @@ def analyze_sentiment(titles: list[str]) -> list[dict]:
     with torch.no_grad():
         output = peft_model(input_ids=input_ids, attention_mask=attention_mask)
         predicted_labels = torch.argmax(output.logits, dim=1)
+        probs = torch.softmax(output.logits, dim=1)
+        confidence = torch.max(probs, dim=1).values
         label_mapping = {0 : 'Bearish', 1 : 'Bullish', 2 : 'Neutral'}
         title_labels = []
         for index in predicted_labels:
             title_labels.append(label_mapping[index.item()])
-        title_sentiment = [{'title' : title, 'label': label} for title, label in zip(titles, title_labels)]
+        title_sentiment = [{'title' : title, 'label': label, 'confidence' : conf.item()} for title, label, conf in zip(titles, title_labels, confidence)]
     return title_sentiment
 
 

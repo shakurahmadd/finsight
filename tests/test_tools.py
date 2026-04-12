@@ -28,6 +28,7 @@ def test_analyze_sentiment():
     assert isinstance(result, list)
     assert isinstance(result[0], dict)
     assert 'label' in result[0].keys()
+    assert 'confidence' in result[0]
 
 def test_sec_filings():
     result = get_sec_filings.invoke('AAPL')

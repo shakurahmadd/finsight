@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 from db.database import get_db
 from db.models import AnalysisResult, Watchlist, SentimentHistory
 from sqlalchemy.exc import IntegrityError
+from apscheduler.schedulers.background import BackgroundScheduler
+from contextlib import asynccontextmanager
+from api.jobs import fetch_and_cache_news
+
+
 
 # build pydantic models for request and response
 class AnalyseRequest(BaseModel):
@@ -28,9 +33,21 @@ class SentimentHistoryResponse(BaseModel):
     date : datetime
     sentiment_score : float
    
+scheduler = BackgroundScheduler()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # runs once when app starts
+    scheduler.start()
+    scheduler.add_job(fetch_and_cache_news, 'cron', hour=1, minute=0)
+
+    yield # app is live here
+
+    # runs once when app stops
+    scheduler.shutdown()
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 # Add analyse endpoint with pipe to LangGraph
 @app.post("/analyse", response_model=AnalyseResponse)
@@ -99,3 +116,5 @@ def get_sentiment_history(ticker: str, db: Session = Depends(get_db)):
                 .all()
 
     return get_rows
+
+
