@@ -14,6 +14,12 @@ In V1 there were only three tools and all of them were always needed to produce 
 
 ---
 
+**Q: Walk me through your nightly sentiment scoring job — why do you weight by both confidence and recency, and what does the decay parameter λ=0.5 control?**
+
+The weighted average combines two confidence signals. Recency is modelled exponentially — `e^(-λ × days_old)` — because financial sentiment moves fast and today's articles should dominate over week-old ones. Model confidence is taken from the softmax of the DistilBERT logits — `max(softmax(logits))` — and represents how certain the model is about its prediction. A high-confidence Bullish article from today gets the most weight; a low-confidence Neutral article from 6 days ago contributes almost nothing. The label is converted to a numeric score (Bearish=-1, Neutral=0, Bullish=1), multiplied by the combined weight, and averaged across all articles. λ=0.5 controls the speed of decay — increasing it to 2.0 would cause articles from even a day ago to carry minimal weight, making the signal very reactive. Decreasing it to 0.1 would smooth the signal, giving older articles nearly as much influence as today's. λ=0.5 is a reasonable starting point that can be tuned once real data accumulates.
+
+---
+
 **Q: Walk me through the POST /watchlist endpoint — what does it do, how does it handle duplicates, and why did you use a 409 status code instead of returning a 200?**
 
 `POST /watchlist` accepts a ticker string in the request body via a Pydantic model. It opens a DB session via FastAPI dependency injection, creates a `Watchlist` ORM object, and attempts to commit it. Since `ticker` is the primary key, inserting a duplicate raises a SQLAlchemy `IntegrityError` — the endpoint catches this, rolls back the session, and raises an `HTTPException` with status code 409. The reason for 409 over a 200 with a message string is that HTTP status codes are machine-readable — a frontend or API client can branch on `response.status_code == 409` without parsing text. A 200 with "already exists" in the body requires the client to interpret a string, which is fragile and non-standard.
@@ -383,3 +389,37 @@ docker-compose up --build -d
 **systemctl enable docker** — starts Docker automatically on reboot. Containers still need `restart: unless-stopped` in docker-compose to auto-restart.
 
 **docker-compose up -d** — detached mode keeps containers running after SSH session ends.
+
+---
+
+## APScheduler
+
+Runs background jobs on a schedule inside a FastAPI app.
+
+**Integration pattern — FastAPI lifespan:**
+```python
+from apscheduler.schedulers.background import BackgroundScheduler
+from contextlib import asynccontextmanager
+
+scheduler = BackgroundScheduler()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+    scheduler.add_job(my_job, 'cron', hour=1, minute=0)
+    yield  # app runs here
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+```
+
+`BackgroundScheduler` runs jobs in a background thread without blocking FastAPI. Lifespan ties the scheduler lifecycle to the app — starts on startup, shuts down cleanly on shutdown.
+
+**Trigger types:**
+- `'cron'` — run at a specific time: `hour=1, minute=0` = 1am daily
+- `'interval'` — run every N seconds/minutes: useful for testing
+
+**Watch-outs:**
+- Jobs run in a background thread — no FastAPI `Depends` injection available. Use `SessionLocal()` directly in a `try/finally` block
+- `BackgroundScheduler` is not async — do not use `AsyncIOScheduler` unless you need async job functions
+- Per-ticker `try/except` with `db.rollback()` inside jobs — one failing ticker must never kill the whole run. `rollback()` resets the session to a clean state for the next ticker

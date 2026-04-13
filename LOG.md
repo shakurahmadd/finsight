@@ -250,3 +250,23 @@
 - `ticker` is the primary key on `Watchlist` — enforces uniqueness at the DB level, `IntegrityError` on duplicate insert maps to 409 Conflict
 - 409 over 200 with message — HTTP status codes are machine-readable; a frontend can branch on status code without parsing response text
 - `SentimentHistory` composite primary key on `(ticker, date)` — enforces one row per ticker per day at the DB level, enabling idempotent inserts via ON CONFLICT
+
+### 2026-04-13
+- Built `api/jobs.py` with two chained nightly jobs: `fetch_and_cache_news` (Job A) and `score_and_store_sentiment` (Job B)
+- Job A fetches articles for all watchlisted tickers via NewsAPI, skips articles with null description, stores in `news_articles` table
+- Job B reads cached articles, scores with DistilBERT, computes weighted average sentiment, stores one row per ticker in `sentiment_history`
+- Job A explicitly calls Job B on completion — chained rather than independently scheduled to ensure articles exist before scoring runs
+- Added APScheduler `BackgroundScheduler` to FastAPI via lifespan events — scheduler starts on app startup, shuts down cleanly on app shutdown
+- Nightly job scheduled at 1am via `cron` trigger
+- Updated `analyze_sentiment` to return confidence alongside label — computes softmax over logits, takes max probability per title as confidence score
+- Fixed `analyze_sentiment` to return `conf.item()` not the full tensor — required for JSON serialisation
+- Fixed `score_and_store_sentiment` to cast `weighted_average` to `float()` — PostgreSQL rejects numpy float64
+- Fixed article filter to 7-day window — matches NewsAPI fetch window and enables recency decay to be meaningful
+- Added null timestamp guard in scoring loop — skips articles with no timestamp rather than crashing
+- Tested full pipeline end-to-end: AAPL sentiment score -0.146 stored in sentiment_history
+
+**Key decisions:**
+- Weighted average formula: `weight = confidence × e^(-λ × days_old)`, `score = sum(label × weight) / sum(weight)`. λ=0.5 starting hyperparameter — higher values decay older articles faster, lower values smooth the signal. Can be tuned once real data accumulates
+- Sentiment label mapping: Bearish=-1, Neutral=0, Bullish=1 — maps categorical model output to a continuous score range [-1, 1]
+- Per-ticker `try/except` with `db.rollback()` and `continue` — one failing ticker never kills the whole job, and rollback keeps the session clean for subsequent tickers
+- Job A and Job B use manual `SessionLocal()` in `try/finally` — FastAPI `Depends` injection is not available outside endpoint context
