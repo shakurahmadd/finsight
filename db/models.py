@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean
 from db.database import Base
 from datetime import datetime, timezone
 
@@ -63,4 +63,19 @@ class SentimentHistory(Base):
     date = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc), primary_key=True)
     sentiment_score = Column(Float, nullable=False)
     
+
+class AnomalyFeatures(Base):
+    __tablename__ = 'anomaly_features'
+
+    ticker = Column(String, primary_key=True)
+    date = Column(DateTime(timezone=True), primary_key=True)
+    sentiment_score = Column(Float, nullable=False)
+    earnings_surprise = Column(Float, nullable=False)
+    insider_volume = Column(Float, nullable=False)
+    filing_frequency = Column(Float, nullable=False)
+    price_volatility = Column(Float, nullable=False)
+    anomaly_score = Column(Float, nullable=True)
+    is_anomaly = Column(Boolean, nullable=True)
+    created_at = Column(DateTime(timezone=True), default = lambda : datetime.now(timezone.utc), nullable=False)
+
 

@@ -423,3 +423,28 @@ app = FastAPI(lifespan=lifespan)
 - Jobs run in a background thread — no FastAPI `Depends` injection available. Use `SessionLocal()` directly in a `try/finally` block
 - `BackgroundScheduler` is not async — do not use `AsyncIOScheduler` unless you need async job functions
 - Per-ticker `try/except` with `db.rollback()` inside jobs — one failing ticker must never kill the whole run. `rollback()` resets the session to a clean state for the next ticker
+
+---
+
+## Anomaly Detection — Feature Matrix
+
+The Isolation Forest trains on a multi-signal feature matrix. One row per ticker per day, five signals per row:
+
+| Signal | Source | How computed |
+|---|---|---|
+| `sentiment_score` | `sentiment_history` table | Read directly — already computed by Job B |
+| `earnings_surprise` | `yf.Ticker.earnings_history` | `(epsActual - epsEstimate) / \|epsEstimate\| * 100` on most recent quarter |
+| `insider_volume` | SEC EDGAR Form 4 | Sum of `Shares` across all trades in latest Form 4. Default 0 if no filing |
+| `filing_frequency` | SEC EDGAR | Count of 10-K + 8-K + Form 4 filings in last 30 days |
+| `price_volatility` | yfinance 30-day history | `pct_change().std()` on daily closing prices |
+
+**Why these five signals:** Each captures a different dimension of risk. Price volatility is market reaction. Sentiment is news tone. Earnings surprise is fundamental performance vs expectation. Insider volume surfaces information asymmetry. Filing frequency detects unusual regulatory activity. An anomaly is when multiple signals deviate simultaneously — no single signal is sufficient alone.
+
+**Watch-outs:**
+- `pct_change()` and `std()` return numpy scalars — wrap in `float()` before storing in PostgreSQL
+- `earnings_history` is a property not a method — no parentheses
+- `date_filed` filter in edgartools requires string format `"YYYY-MM-DD:"` — colon suffix means "from this date onwards"
+- Skip ticker entirely if no sentiment score exists for today — incomplete vectors corrupt the feature matrix
+
+**Training data constraint:**
+Isolation Forest needs historical rows to learn what "normal" looks like. Sentiment scores cannot be backfilled — NewsAPI free tier has no historical news and only 100 req/day. The nightly job must accumulate real data before training is meaningful. Deferred until sufficient rows exist.

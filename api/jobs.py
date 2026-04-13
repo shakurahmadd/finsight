@@ -1,8 +1,11 @@
 import numpy as np
-from agent.tools import analyze_sentiment, get_news
+from agent.tools import analyze_sentiment, get_news, get_sec_filings
 from datetime import datetime, date, timedelta
 from db.database import SessionLocal
-from db.models import Watchlist, SentimentHistory, NewsArticle
+from db.models import Watchlist, SentimentHistory, NewsArticle, AnomalyFeatures
+import yfinance as yf
+from edgar import Company
+from sqlalchemy import func
 
 
 def fetch_and_cache_news():
@@ -71,4 +74,62 @@ def score_and_store_sentiment():
                 continue
     finally:
         db.close()
+    build_feature_vectors()
 
+
+
+def build_feature_vectors():
+    db = SessionLocal()
+    try:
+        watch_list_tickers = db.query(Watchlist).all()
+
+        for row in watch_list_tickers:
+            try:
+                sentiment_row = db.query(SentimentHistory).filter(SentimentHistory.ticker == row.ticker)\
+                    .filter(func.date(SentimentHistory.date) == date.today()).first()
+                if sentiment_row == None:
+                    continue
+
+                ticker_obj = yf.Ticker(row.ticker)
+                ticker_history = ticker_obj.history(period='30d')
+                closing_price = ticker_history['Close']
+                daily_returns = closing_price.pct_change()
+                price_volatility = daily_returns.std()
+
+                ticker_earnings_history = ticker_obj.earnings_history
+                suprise_earnings = (ticker_earnings_history.iloc[0]['epsActual'] - ticker_earnings_history.iloc[0]['epsEstimate']) / np.abs(ticker_earnings_history.iloc[0]['epsEstimate']) * 100 
+
+                sec_filings = get_sec_filings.invoke(row.ticker)
+                form_4 = sec_filings['form_4']
+                if isinstance(form_4, list):
+                    insider_volume = 0
+                    for shares in form_4:
+                        insider_volume += shares['Shares']
+                else:
+                    insider_volume = 0
+                c = Company(row.ticker)
+                cutoff = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
+                ten_k = c.get_filings(form='10-K').filter(date_filed= f"{cutoff}:")
+                eight_k = c.get_filings(form='8-K').filter(date_filed= f"{cutoff}:")
+                form_four = c.get_filings(form='4').filter(date_filed= f"{cutoff}:")
+                
+                filing_frequency = len(ten_k) + len(eight_k) + len(form_four)
+
+                anomaly_features_row = AnomalyFeatures(ticker = row.ticker, date = datetime.today(), 
+                                                       sentiment_score = sentiment_row.sentiment_score,
+                                                       earnings_surprise = float(suprise_earnings),
+                                                       insider_volume = insider_volume,
+                                                       filing_frequency = filing_frequency,
+                                                       price_volatility = float(price_volatility))
+                
+                db.add(anomaly_features_row)
+                db.commit()
+
+            except Exception as e:
+                print(f"Error for {row.ticker}: {e}")
+                db.rollback()
+                continue
+
+
+    finally:
+        db.close()

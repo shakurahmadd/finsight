@@ -270,3 +270,27 @@
 - Sentiment label mapping: Bearish=-1, Neutral=0, Bullish=1 — maps categorical model output to a continuous score range [-1, 1]
 - Per-ticker `try/except` with `db.rollback()` and `continue` — one failing ticker never kills the whole job, and rollback keeps the session clean for subsequent tickers
 - Job A and Job B use manual `SessionLocal()` in `try/finally` — FastAPI `Depends` injection is not available outside endpoint context
+
+---
+
+## V2 Phase 3 — Anomaly Detection (Isolation Forest)
+
+### 2026-04-13
+- Added `AnomalyFeatures` SQLAlchemy model to `db/models.py` — composite primary key on `(ticker, date)`, five signal columns: `sentiment_score`, `earnings_surprise`, `insider_volume`, `filing_frequency`, `price_volatility`, plus nullable `anomaly_score` and `is_anomaly` for when the model runs
+- Generated Alembic migration `e404aaea36e6_add_anomaly_features_table.py` and applied it
+- Built `build_feature_vectors()` (Job C) in `api/jobs.py` — computes all five signals per watchlisted ticker and stores one row per ticker per day in `anomaly_features`
+- Chained Job C to end of Job B — runs after sentiment scores are guaranteed to exist
+- Signal sources:
+  - `price_volatility`: `yf.Ticker.history(period='30d')` → daily returns via `pct_change()` → `std()`
+  - `sentiment_score`: read directly from `sentiment_history` table for today's date
+  - `earnings_surprise`: `yf.Ticker.earnings_history.iloc[0]` → `(epsActual - epsEstimate) / |epsEstimate| * 100`
+  - `insider_volume`: `get_sec_filings` Form 4 → sum of `Shares` across all trades, defaults to 0 if no Form 4
+  - `filing_frequency`: `edgar.Company.get_filings()` filtered to last 30 days for 10-K, 8-K, and Form 4 → total count
+- Skips ticker entirely if no sentiment score exists for today — incomplete feature vectors not stored
+- Wrapped `price_volatility` and `earnings_surprise` in `float()` — pandas/numpy scalar types rejected by PostgreSQL
+
+**Key decisions:**
+- Isolation Forest training deferred — no historical sentiment data exists yet. Nightly job will accumulate real feature vectors; model will be trained once sufficient data is available. Training on incomplete data would undermine the signal quality
+- `insider_volume = 0` when no Form 4 exists — absence of insider trading is not an anomaly, defaulting to 0 is correct rather than skipping the ticker
+- Filing frequency counts all three form types (10-K, 8-K, Form 4) — a spike in any filing type is a meaningful signal
+- `date_filed` filter uses `f"{cutoff}:"` string format — edgartools requires date range as `"YYYY-MM-DD:"` not a datetime object
