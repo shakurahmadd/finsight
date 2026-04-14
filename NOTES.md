@@ -179,6 +179,24 @@ def my_route(db: Session = Depends(get_db)):
 
 **HTTPException:** `raise HTTPException(status_code=404, detail="Not found")`
 
+**HTTP Status Codes used in FinSight:**
+
+| Code | Name | When to use | Example in project |
+|------|------|-------------|--------------------|
+| 200 | OK | Successful GET or POST that doesn't create | Login, get results |
+| 201 | Created | Successfully created a new resource | Register, add to watchlist, create portfolio |
+| 400 | Bad Request | Malformed request from client | Invalid input |
+| 401 | Unauthorised | No token, invalid token, or wrong password | Missing JWT, failed login |
+| 403 | Forbidden | Valid token but accessing another user's resource | Accessing someone else's portfolio |
+| 404 | Not Found | Resource doesn't exist | Ticker not in DB, portfolio ID not found |
+| 409 | Conflict | Resource already exists | Duplicate email, duplicate watchlist ticker |
+| 500 | Internal Server Error | Unhandled exception in server code | Bug in route logic |
+
+**Key distinctions:**
+- 401 vs 403: not authenticated vs authenticated but not allowed
+- 404 vs 403: doesn't exist vs exists but forbidden — always check 404 first
+- 200 vs 201: both success, but 201 specifically means something was created
+
 ---
 
 ## Cache-Aside Pattern
@@ -448,3 +466,89 @@ The Isolation Forest trains on a multi-signal feature matrix. One row per ticker
 
 **Training data constraint:**
 Isolation Forest needs historical rows to learn what "normal" looks like. Sentiment scores cannot be backfilled — NewsAPI free tier has no historical news and only 100 req/day. The nightly job must accumulate real data before training is meaningful. Deferred until sufficient rows exist.
+
+---
+
+## JWT Authentication
+
+JSON Web Tokens — stateless authentication. Token is issued on login, sent with every subsequent request in the `Authorization: Bearer <token>` header. Server verifies the token on each request without storing it.
+
+**Token structure:** header.payload.signature — payload contains `user_id` and `exp`. Signed with `JWT_SECRET` using HS256.
+
+**passlib + python-jose pattern:**
+```python
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+
+pwd_context = CryptContext(schemes=["bcrypt_sha256"])  # bcrypt_sha256 avoids 72-byte limit
+ALGORITHM = "HS256"
+
+def hash_password(password): return pwd_context.hash(password)
+def verify_password(plain, hashed): return pwd_context.verify(plain, hashed)
+def create_token(user_id):
+    return jwt.encode({"user_id": user_id, "exp": datetime.now(timezone.utc) + timedelta(hours=24)}, SECRET_KEY, algorithm=ALGORITHM)
+def decode_token(token):
+    try: return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError: raise HTTPException(status_code=401, detail="Invalid token")
+```
+
+**`HTTPBearer` vs `OAuth2PasswordBearer`:** `OAuth2PasswordBearer` creates an OAuth2 password flow in Swagger — it expects the login endpoint to accept form data, not JSON. If your login endpoint uses a Pydantic JSON body, use `HTTPBearer` instead — gives a simple token input in Swagger and extracts the bearer token cleanly via `credentials.credentials`.
+
+```python
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+security = HTTPBearer()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
+    ...
+```
+
+**`OAuth2PasswordBearer`:** extracts bearer token from Authorization header automatically. Pass `tokenUrl` pointing to your login endpoint.
+
+**`get_current_user` dependency:** chains `oauth2_scheme` → `decode_token` → DB lookup → returns user object. Add as `Depends(get_current_user)` to any protected endpoint — raises 401 before route runs if auth fails.
+
+**HTTP status codes:**
+- 401 — unauthenticated (no token, invalid token, wrong password)
+- 403 — unauthorised (valid token, accessing another user's resource)
+- 409 — conflict (duplicate email on register)
+
+**bcrypt watch-out:** passlib is incompatible with bcrypt 4.x — pin to `bcrypt==4.0.1` in requirements.txt.
+
+**Why JWT is stateless:** token contains everything needed to verify identity. Server never stores tokens — just signs them on issue and verifies the signature on each request. Scales horizontally with no shared session state.
+
+---
+
+## Portfolio System
+
+**Schema:**
+- `portfolios`: `id`, `user_id` (FK → users.id CASCADE), `name`, `created_at`
+- `holdings`: `id`, `portfolio_id` (FK → portfolios.id CASCADE), `ticker`, `shares`, `created_at`
+- Weight percentage computed dynamically — `shares_i / total_shares`. Never stored.
+
+**CASCADE delete:** deleting a user deletes their portfolios. Deleting a portfolio deletes its holdings. Defined at the DB level via ForeignKey CASCADE.
+
+**Portfolio aggregation — weighted average sentiment:**
+```
+weight_i = shares_i / total_shares
+portfolio_sentiment = sum(weight_i × sentiment_i)
+```
+Sentiment pulled from `sentiment_history` for most recent date per ticker.
+
+**Known limitation:** share count ignores stock price — 10 shares of a $5 stock is weighted the same as 10 shares of a $200 stock. Correct weight is `shares × price`. Deferred until price fetching is added.
+
+**Protected route pattern:**
+```python
+@app.post("/portfolio")
+def create_portfolio(request: PortfolioRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    # current_user is the full User ORM object
+    # 401 raised automatically if token missing/invalid
+```
+
+**Ownership check pattern:**
+```python
+if port_row is None:
+    raise HTTPException(status_code=404, ...)
+if port_row.user_id != current_user.id:
+    raise HTTPException(status_code=403, ...)
+```
+Always 404 before 403 — check existence first, then ownership.

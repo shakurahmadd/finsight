@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 from fastapi import HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from db.database import get_db
 from sqlalchemy.orm import Session
 from db.models import User
 
+security = HTTPBearer()
 
 load_dotenv()
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
@@ -38,10 +39,11 @@ def decode_token(token):
     except JWTError:
         raise HTTPException(status_code=401, detail="This token is not valid")
     
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
     payload = decode_token(token)
     user_id = payload['user_id']
     user_row = db.query(User).filter(User.id == user_id).first()

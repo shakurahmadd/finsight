@@ -294,3 +294,46 @@
 - `insider_volume = 0` when no Form 4 exists — absence of insider trading is not an anomaly, defaulting to 0 is correct rather than skipping the ticker
 - Filing frequency counts all three form types (10-K, 8-K, Form 4) — a spike in any filing type is a meaningful signal
 - `date_filed` filter uses `f"{cutoff}:"` string format — edgartools requires date range as `"YYYY-MM-DD:"` not a datetime object
+
+---
+
+## V2 Phase 5 — User Auth + Portfolio System
+
+### 2026-04-14
+- Added `passlib[bcrypt]`, `python-jose`, and `bcrypt==4.0.1` to requirements.txt — pinned bcrypt to 4.0.1 due to passlib incompatibility with bcrypt 4.x (`__about__` attribute missing)
+- Created `api/auth.py` with full JWT auth utilities:
+  - `CryptContext(schemes=["bcrypt_sha256"])` — bcrypt_sha256 pre-hashes with SHA256, removing the 72-byte password limit
+  - `hash_password(password)` — hashes plain password for storage
+  - `verify_password(plain, hashed)` — uses `pwd_context.verify()`, extracts salt from stored hash internally
+  - `create_token(user_id)` — encodes `{"user_id": id, "exp": now + 24h}` signed with HS256
+  - `decode_token(token)` — decodes and verifies token, raises 401 on `JWTError`
+  - `OAuth2PasswordBearer(tokenUrl="/login")` — extracts bearer token from Authorization header
+  - `get_current_user(token, db)` — decodes token, looks up user in DB, returns user object or raises 401
+- Added `User` SQLAlchemy model to `db/models.py` — `id`, `email` (UNIQUE), `hashed_password`, `created_at`
+- Generated and applied Alembic migration for `users` table
+- Added `POST /register` — checks for duplicate email (409), hashes password, stores user, returns 201
+- Added `POST /login` — looks up by email, verifies password with `pwd_context.verify`, returns `{"access_token": token, "token_type": "bearer"}`
+- Added `Portfolio` and `Holdings` SQLAlchemy models with ForeignKey CASCADE relationships
+- Generated and applied Alembic migration for `portfolios` and `holdings` tables
+- Added 6 portfolio/holdings endpoints — all protected with `Depends(get_current_user)`:
+  - `POST /portfolio` — creates portfolio linked to current user
+  - `GET /portfolio` — returns all portfolios for current user
+  - `DELETE /portfolio/{portfolio_id}` — 404 if not found, 403 if not owner
+  - `POST /holdings/{portfolio_id}` — adds holding, 404 if portfolio not found, 403 if not owner
+  - `GET /holdings/{portfolio_id}` — returns all holdings, 404/403 checks
+  - `DELETE /holdings/{portfolio_id}/{holdings_id}` — 404/403 checks, deletes holding
+- Tested register, duplicate register (409), login, token return — all working
+
+**Key decisions:**
+- JWT is stateless — token not stored in DB, verified by decoding on each request
+- `get_current_user` as a FastAPI dependency runs before the route — raises 401 automatically if token missing or invalid, two-for-one auth enforcement and user object retrieval
+- 401 for unauthenticated (no/invalid token), 403 for unauthorised (valid token, wrong user's resource)
+- Weight percentage computed dynamically from shares — never stored. Known limitation: share count ignores stock price, so positions are not truly value-weighted. Upgrade path: `shares × current_price` once price fetching is added
+- Portfolio aggregation (weighted average sentiment) deferred to next session
+
+### 2026-04-15
+- Fixed Swagger auth — switched from `OAuth2PasswordBearer` to `HTTPBearer` in `auth.py`. `OAuth2PasswordBearer` sends credentials as form data but `/login` expects JSON — incompatible. `HTTPBearer` gives a simple token input field in Swagger instead
+- Updated `get_current_user` to extract token via `credentials.credentials` from `HTTPAuthorizationCredentials`
+- Added duplicate portfolio name check to `POST /portfolio` — queries by `user_id` + `name`, returns 409 if match found
+- Tested all 6 portfolio/holdings endpoints end-to-end — all working correctly
+- Committed Phase 5 work to `v2-phase5` branch

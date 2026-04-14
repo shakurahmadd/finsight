@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
 from db.database import Base
 from datetime import datetime, timezone
 
@@ -79,6 +79,7 @@ class AnomalyFeatures(Base):
     created_at = Column(DateTime(timezone=True), default = lambda : datetime.now(timezone.utc), nullable=False)
 
 
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -86,3 +87,22 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)
     email = Column(String, nullable=False, unique=True)
     hashed_password = Column(String, nullable=False)
+
+
+
+class Portfolio(Base):
+    __tablename__ = 'portfolios'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)
+
+class Holdings(Base):
+    __tablename__ = 'holdings'
+
+    id = Column(Integer, primary_key=True)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
+    ticker = Column(String, nullable=False)
+    shares = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)

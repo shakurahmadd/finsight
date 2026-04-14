@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 from agent.graph import graph_app
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import AnalysisResult, Watchlist, SentimentHistory, User
+from db.models import AnalysisResult, Watchlist, SentimentHistory, User, Portfolio, Holdings
 from sqlalchemy.exc import IntegrityError
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
@@ -39,6 +39,15 @@ class AuthRequest(BaseModel):
     email : str
     password : str
    
+class PortfolioRequest(BaseModel):
+    name : str
+
+
+class HoldingRequest(BaseModel):
+    ticker : str
+    shares : float
+
+
 
 
 scheduler = BackgroundScheduler()
@@ -156,3 +165,78 @@ def login(request : AuthRequest, db : Session = Depends(get_db)):
    
 
 
+@app.post("/portfolio")
+def create_postfolio(request : PortfolioRequest, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
+    user_port_rows = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).filter(Portfolio.name == request.name).first()
+    if user_port_rows is None:
+        portfolio_row = Portfolio(name = request.name, user_id = current_user.id)
+        
+        db.add(portfolio_row)
+        db.commit()
+        return {"id" : portfolio_row.id, "name" : portfolio_row.name}
+    else:
+        raise HTTPException(status_code=409, detail="Name already exists in your portfolio.")
+
+
+@app.get("/portfolio")
+def get_portfolio(db : Session = Depends(get_db), current_user = Depends(get_current_user)):
+    portfolio_rows  = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
+    return [{"id" : row.id, "name" : row.name} for row in portfolio_rows]
+    
+
+@app.delete("/portfolio/{portfolio_id}")
+def delete_portfolio(portfolio_id : int, current_user = Depends(get_current_user), db : Session = Depends(get_db)):
+    portfolio_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if portfolio_row == None:
+        raise HTTPException(status_code=404, detail="Porfolio id does not exist")
+    if portfolio_row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have acess to this portfolio")
+    else:
+        db.delete(portfolio_row)
+        db.commit()
+        return f"{portfolio_row.name} has been deleted"
+    
+
+@app.post('/holdings/{portfolio_id}')
+def add_holdings(portfolio_id : int, request : HoldingRequest, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
+    port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if port_row is None:
+        raise HTTPException(status_code = 404, detail="Porfolio does not exist")
+    if port_row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have acess to this portfolio")
+    else:
+        holdings_row = Holdings(portfolio_id = portfolio_id, ticker = request.ticker, shares = request.shares)
+        db.add(holdings_row)
+        db.commit()
+        return {"id" : holdings_row.id, "ticker" : holdings_row.ticker, "shares" : holdings_row.shares}
+    
+
+
+@app.get('/holdings/{portfolio_id}')
+def get_holdings(portfolio_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)): 
+    port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if port_row == None:
+        raise HTTPException(status_code=404, detail= "Holding does not exist")
+    if port_row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail= "You do not have acess to this holding")
+    else:
+        holding_row = db.query(Holdings).filter(Holdings.portfolio_id == portfolio_id).all()
+        return [{"id" : row.id, "ticker" : row.ticker, "shares" : row.shares } for row in holding_row]
+    
+
+    
+@app.delete('/holdings/{portfolio_id}/{holdings_id}')
+def delete_holdings(portfolio_id : int, holdings_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
+    port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if port_row == None:
+        raise HTTPException(status_code=404, detail= "This portfolio does not exist")
+    if port_row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail = "You do not have acess to this holding")
+    else:
+        holdings_row = db.query(Holdings).filter(Holdings.id == holdings_id).first()
+        if holdings_row == None:
+            raise HTTPException(status_code=404, detail="This holding does not exist")
+        else:
+            db.delete(holdings_row)
+            db.commit()
+            return f"{holdings_id} has been deleted from portfolio: {portfolio_id}"
