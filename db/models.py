@@ -79,3 +79,10 @@ class AnomalyFeatures(Base):
     created_at = Column(DateTime(timezone=True), default = lambda : datetime.now(timezone.utc), nullable=False)
 
 
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    hashed_password = Column(String, nullable=False)

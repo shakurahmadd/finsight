@@ -16,3 +16,6 @@ uvicorn
 sqlalchemy
 pytest
 edgartools==3.8.0
+passlib[bcrypt]
+python-jose
+bcrypt==4.0.1

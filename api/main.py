@@ -4,11 +4,12 @@ from pydantic import BaseModel, ConfigDict
 from agent.graph import graph_app
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import AnalysisResult, Watchlist, SentimentHistory
+from db.models import AnalysisResult, Watchlist, SentimentHistory, User
 from sqlalchemy.exc import IntegrityError
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 from api.jobs import fetch_and_cache_news
+from api.auth import hash_password, verify_password, create_token, decode_token, get_current_user
 
 
 
@@ -32,7 +33,14 @@ class SentimentHistoryResponse(BaseModel):
     ticker : str
     date : datetime
     sentiment_score : float
+
+
+class AuthRequest(BaseModel):
+    email : str
+    password : str
    
+
+
 scheduler = BackgroundScheduler()
 
 @asynccontextmanager
@@ -116,5 +124,35 @@ def get_sentiment_history(ticker: str, db: Session = Depends(get_db)):
                 .all()
 
     return get_rows
+
+
+# Registration endpoint
+@app.post("/register", status_code=201)
+def register(request : AuthRequest, db : Session = Depends(get_db)):
+    check_duplicates = db.query(User).filter(User.email == request.email).first()
+    if check_duplicates == None:
+        hash_pass = hash_password(request.password)
+        input_user_info = User(email = request.email, hashed_password = hash_pass)
+        db.add(input_user_info)
+        db.commit()
+
+        return "You have registered succesfully"
+    else:
+        raise HTTPException(status_code=409, detail='User already exsits')
+
+
+# Login endpoint
+@app.post("/login", status_code=200)
+def login(request : AuthRequest, db : Session = Depends(get_db)):
+    user_row = db.query(User).filter(User.email == request.email).first()
+    if user_row == None:
+        raise HTTPException(status_code=401, detail="User does not exist, please register.")
+    check_pass = verify_password(request.password, user_row.hashed_password)
+    if check_pass == False:
+        raise HTTPException(status_code=401, detail='Login details are incorrect')
+    else:
+        user_token = create_token(user_row.id)
+        return {'access_token' : user_token, 'token_type' : 'bearer'}
+   
 
 
