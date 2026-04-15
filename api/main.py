@@ -10,6 +10,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 from api.jobs import fetch_and_cache_news
 from api.auth import hash_password, verify_password, create_token, decode_token, get_current_user
+from fastapi.middleware.cors import CORSMiddleware
+from langchain_core.messages import HumanMessage
 
 
 
@@ -64,7 +66,18 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
+
+# accept requests from react dev server
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(                                                                                                                                       
+      CORSMiddleware,                                                                                                                                       
+      allow_origins=["http://localhost:5173"],                                                                                                            
+      allow_methods=["*"],                    
+      allow_headers=["*"],                
+  )
+
+
+
 
 # Add analyse endpoint with pipe to LangGraph
 @app.post("/analyse", response_model=AnalyseResponse)
@@ -72,18 +85,18 @@ def analyse(request: AnalyseRequest, db: Session = Depends(get_db)):
     check = db.query(AnalysisResult).filter_by(ticker=request.ticker).first()
    
     if check is None:
-        result = graph_app.invoke({'ticker' : request.ticker})
-        new_result = AnalysisResult(ticker=request.ticker, summary=result['summary'])
+        result = graph_app.invoke({'messages' : [HumanMessage(content = f"Provide and alaysis on the ticker: {request.ticker}")]})
+        new_result = AnalysisResult(ticker=request.ticker, summary=result['messages'][-1].content)
         db.add(new_result)
         db.commit()
-        return AnalyseResponse(ticker=request.ticker, summary=result['summary'], timestamp=datetime.now(timezone.utc)) 
+        return AnalyseResponse(ticker=request.ticker, summary=result['messages'][-1].content, timestamp=datetime.now(timezone.utc)) 
     
     elif (datetime.now(timezone.utc) - check.timestamp) > timedelta(days=1):
-        result = graph_app.invoke({'ticker' : request.ticker})
-        check.summary = result['summary']
+        result = graph_app.invoke({'messages' : [HumanMessage(content = f"Provide and alaysis on the ticker: {request.ticker}")]})
+        check.summary = result['messages'][-1].content
         check.timestamp = datetime.now(timezone.utc)
         db.commit()
-        return AnalyseResponse(ticker=request.ticker, summary=result['summary'], timestamp=datetime.now(timezone.utc))
+        return AnalyseResponse(ticker=request.ticker, summary=result['messages'][-1].content, timestamp=datetime.now(timezone.utc))
     else:
         return AnalyseResponse(ticker = request.ticker, summary=check.summary, timestamp=check.timestamp)
     
