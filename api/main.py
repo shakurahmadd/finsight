@@ -240,3 +240,47 @@ def delete_holdings(portfolio_id : int, holdings_id : int, db : Session = Depend
             db.delete(holdings_row)
             db.commit()
             return f"{holdings_id} has been deleted from portfolio: {portfolio_id}"
+
+
+
+@app.get('/portfolio/{portfolio_id}/summary')
+def get_portfolio_summary(portfolio_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
+    portfolio_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if portfolio_row == None:
+        raise HTTPException(status_code=404, detail="Portfolio does not exist")
+    if portfolio_row.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have acess to this portfolio")
+    else:
+        # weighted_sentiment = sum(sentiment_i * shares_i) / sum(shares_i for tickers with data)
+        holdings = db.query(Holdings).filter(Holdings.portfolio_id == portfolio_id).all()
+        tickers = [row.ticker for row in holdings]
+        shares = [row.shares for row in holdings]
+        numerator = 0
+        denominator = 0
+        for ticker, share in zip(tickers, shares):
+            sentiment = db.query(SentimentHistory).filter(SentimentHistory.ticker == ticker).first()
+            if sentiment is None:
+                continue # skip both numerator and denominator
+            else:
+                numerator += (sentiment.sentiment_score * share) 
+                denominator += share
+        if denominator == 0:
+            return "No sentiment data is available"
+        else:
+            portfolio_sentiment = numerator / denominator
+            return portfolio_sentiment
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+    

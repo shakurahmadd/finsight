@@ -536,6 +536,9 @@ Sentiment pulled from `sentiment_history` for most recent date per ticker.
 
 **Known limitation:** share count ignores stock price — 10 shares of a $5 stock is weighted the same as 10 shares of a $200 stock. Correct weight is `shares × price`. Deferred until price fetching is added.
 
+**Known improvement — value-weighted portfolio aggregation:**
+Current implementation weights sentiment by share count. Correct approach weights by position value (`shares × current_price` from yfinance). This gives accurate portfolio representation since share count alone ignores price differences between stocks. Requires yfinance price lookup per holding at query time. Implement after Phase 6 frontend is complete so the improvement is immediately visible in the UI.
+
 **Protected route pattern:**
 ```python
 @app.post("/portfolio")
