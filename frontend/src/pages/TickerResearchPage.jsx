@@ -4,6 +4,7 @@ import { TextField, Button, Typography, Container, Box, Card, CardContent, Circu
 import SentimentChart from '../components/SentimentChart'
 import NewsFeed from '../components/NewsFeed'
 import EarningsTable from '../components/EarningsTable'
+import SecFilings from '../components/SecFilingsCard'
 
 function TickerResearchPage() {
     const [ticker, setTicker] = useState('')
@@ -12,6 +13,7 @@ function TickerResearchPage() {
     const [sentimentHistory, setSentimentHistory] = useState(null)
     const [newsFeed, setNewsFeed] = useState(null)
     const [earningsTable, setEarningsTable] = useState(null)
+    const [secFilingCard, setSecFilingCard] = useState(null)
     const handleSearch = async () => {
         setIsLoading(true)                                                                                                                                    
         try {
@@ -28,6 +30,8 @@ function TickerResearchPage() {
             const earningsTableResponse = await axios.get(`http://localhost:8000/earnings/${ticker}`)
             setEarningsTable(earningsTableResponse.data)
 
+            const secFilingResponse = await axios.get(`http://localhost:8000/filings/${ticker}`)
+            setSecFilingCard(secFilingResponse.data)
 
         } catch (error) {                                                                                                                                     
             console.error(error)                
@@ -63,6 +67,8 @@ function TickerResearchPage() {
             {newsFeed && <NewsFeed news={newsFeed} />}
 
             {earningsTable && <EarningsTable earnings={earningsTable} />}
+
+            {secFilingCard && <SecFilings filings={secFilingCard} />}
 
 
         </Container>                                                                                                                                          

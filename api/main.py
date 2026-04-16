@@ -13,6 +13,7 @@ from api.auth import hash_password, verify_password, create_token, decode_token,
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage
 import yfinance as yf
+from agent.tools import get_sec_filings
 
 
 # build pydantic models for request and response
@@ -314,5 +315,9 @@ def get_earnings(ticker : str ):
 
 
 
-
+@app.get('/filings/{ticker}')
+def get_filings(ticker : str):
+    sec_filings = get_sec_filings.invoke(ticker)
+    return sec_filings
+    
     
