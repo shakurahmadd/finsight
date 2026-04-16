@@ -12,7 +12,7 @@ from api.jobs import fetch_and_cache_news
 from api.auth import hash_password, verify_password, create_token, decode_token, get_current_user
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage
-
+import yfinance as yf
 
 
 # build pydantic models for request and response
@@ -297,6 +297,19 @@ def get_news_ticker(ticker : str, db : Session = Depends(get_db)):
                  "timestamp": row.timestamp} for row in news_article_rows]
 
 
+@app.get('/earnings/{ticker}')
+def get_earnings(ticker : str ):
+    ticker_obj = yf.Ticker(ticker)
+    ticker_history = ticker_obj.earnings_history
+    eps_actuals = ticker_history['epsActual']
+    eps_estimates = ticker_history['epsEstimate']
+    dates = ticker_history.index
+    surprises = ((eps_actuals - eps_estimates) / abs(eps_estimates) * 100 )
+
+
+    return [{"id": i ,"date" : str(date), "eps_actual" : float(eps_actual),
+              "eps_estimate" : float(eps_estimate), "surprise" : float(surprise)} 
+              for i, (date, eps_actual, eps_estimate, surprise) in enumerate(zip(dates, eps_actuals, eps_estimates, surprises))]
 
 
 

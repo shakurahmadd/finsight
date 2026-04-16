@@ -3,6 +3,7 @@ import axios from 'axios'
 import { TextField, Button, Typography, Container, Box, Card, CardContent, CircularProgress} from '@mui/material'
 import SentimentChart from '../components/SentimentChart'
 import NewsFeed from '../components/NewsFeed'
+import EarningsTable from '../components/EarningsTable'
 
 function TickerResearchPage() {
     const [ticker, setTicker] = useState('')
@@ -10,6 +11,7 @@ function TickerResearchPage() {
     const [analysisResult, setAnalysisResult] = useState(null)
     const [sentimentHistory, setSentimentHistory] = useState(null)
     const [newsFeed, setNewsFeed] = useState(null)
+    const [earningsTable, setEarningsTable] = useState(null)
     const handleSearch = async () => {
         setIsLoading(true)                                                                                                                                    
         try {
@@ -22,7 +24,10 @@ function TickerResearchPage() {
 
             const newsFeedResponse = await axios.get(`http://localhost:8000/news/${ticker}`)
             setNewsFeed(newsFeedResponse.data)
-            console.log(newsFeedResponse.data)
+            
+            const earningsTableResponse = await axios.get(`http://localhost:8000/earnings/${ticker}`)
+            setEarningsTable(earningsTableResponse.data)
+
 
         } catch (error) {                                                                                                                                     
             console.error(error)                
@@ -57,8 +62,7 @@ function TickerResearchPage() {
 
             {newsFeed && <NewsFeed news={newsFeed} />}
 
-
-
+            {earningsTable && <EarningsTable earnings={earningsTable} />}
 
 
         </Container>                                                                                                                                          
