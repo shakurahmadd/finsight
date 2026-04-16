@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 from agent.graph import graph_app
 from sqlalchemy.orm import Session
 from db.database import get_db
-from db.models import AnalysisResult, Watchlist, SentimentHistory, User, Portfolio, Holdings
+from db.models import AnalysisResult, Watchlist, SentimentHistory, User, Portfolio, Holdings, NewsArticle
 from sqlalchemy.exc import IntegrityError
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
@@ -285,10 +285,16 @@ def get_portfolio_summary(portfolio_id : int, db : Session = Depends(get_db), cu
         
 
 
-
-
-
-
+@app.get('/news/{ticker}')
+def get_news_ticker(ticker : str, db : Session = Depends(get_db)):
+    news_article_rows = db.query(NewsArticle).filter(NewsArticle.ticker == ticker)\
+        .order_by(NewsArticle.timestamp.desc()).limit(10).all()
+    if not news_article_rows:
+        raise HTTPException(status_code=404, detail="No articles exist")
+    else:
+        return [{"title" : row.title, "sentiment_label" : row.sentiment_label, 
+                 "sentiment_confidence" : row.sentiment_confidence, 
+                 "timestamp": row.timestamp} for row in news_article_rows]
 
 
 

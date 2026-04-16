@@ -2,12 +2,14 @@ import { useState } from 'react'
 import axios from 'axios'
 import { TextField, Button, Typography, Container, Box, Card, CardContent, CircularProgress} from '@mui/material'
 import SentimentChart from '../components/SentimentChart'
+import NewsFeed from '../components/NewsFeed'
 
 function TickerResearchPage() {
     const [ticker, setTicker] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [analysisResult, setAnalysisResult] = useState(null)
     const [sentimentHistory, setSentimentHistory] = useState(null)
+    const [newsFeed, setNewsFeed] = useState(null)
     const handleSearch = async () => {
         setIsLoading(true)                                                                                                                                    
         try {
@@ -16,7 +18,12 @@ function TickerResearchPage() {
                                                 
             const sentimentResponse = await axios.get(`http://localhost:8000/sentiment/history/${ticker}`)
             setSentimentHistory(sentimentResponse.data)
-            console.log(sentimentResponse.data)
+    
+
+            const newsFeedResponse = await axios.get(`http://localhost:8000/news/${ticker}`)
+            setNewsFeed(newsFeedResponse.data)
+            console.log(newsFeedResponse.data)
+
         } catch (error) {                                                                                                                                     
             console.error(error)                
         } finally {                                                                                                                                           
@@ -47,6 +54,13 @@ function TickerResearchPage() {
                 </Card>                                                                                                                                              
             )}
             {sentimentHistory && <SentimentChart data={sentimentHistory} />} 
+
+            {newsFeed && <NewsFeed news={newsFeed} />}
+
+
+
+
+
         </Container>                                                                                                                                          
     )
 }             

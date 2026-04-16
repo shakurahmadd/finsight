@@ -6,6 +6,7 @@ from db.models import Watchlist, SentimentHistory, NewsArticle, AnomalyFeatures
 import yfinance as yf
 from edgar import Company
 from sqlalchemy import func
+from agent.tools import analyze_sentiment
 
 
 def fetch_and_cache_news():
@@ -15,14 +16,19 @@ def fetch_and_cache_news():
         for ticker in watchlist_tickers:
             try:
                 articles = get_news.invoke(ticker.ticker)
-
-                for article in articles:
+                if not articles:
+                    continue
+                titles = [article['title'] for article in articles]
+                sentiments = analyze_sentiment.invoke({"titles" : titles})
+                for article, sentiment in zip(articles, sentiments):
                     if not article.get('description'):
                         continue
                     else:
                         news_article_row = NewsArticle(ticker = ticker.ticker,
                                                     title=article['title'],
-                                                    content=article['description'])
+                                                    content=article['description'], 
+                                                    sentiment_label = sentiment['label'], 
+                                                    sentiment_confidence = sentiment['confidence'])
                         db.add(news_article_row)
                 db.commit()
             except Exception as e:

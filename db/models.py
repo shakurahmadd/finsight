@@ -10,6 +10,9 @@ class NewsArticle(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), default = lambda: datetime.now(timezone.utc), nullable=False)
+    sentiment_label = Column(String, nullable=True)
+    sentiment_confidence = Column(Float, nullable=True)
+
 
 
 class AnalysisResult(Base):
