@@ -397,6 +397,14 @@
 - `handleDeleteHolding` — `DELETE /holdings/${selectedPortfolio}/${holding_id}` with auth header, re-fetches on success
 - Added `/portfolio` route to `App.jsx`
 - Tested full flow: create portfolio, view holdings, add holding, delete holding, delete portfolio — all working
+
+### 2026-04-18
+- Added `GET /watchlist` endpoint to `api/main.py` — queries all `Watchlist` rows, returns list of `{ ticker }` dicts, 404 if empty
+- Built `WatchlistPage.jsx` — fetches all watchlist tickers then fetches sentiment history for each in parallel using `Promise.all()`
+- `fetch_watchlist` builds a `combined` array of `{ ticker, sentimentHistory }` objects — one entry per watchlisted ticker
+- Displays latest sentiment score using `sentimentHistory.at(-1)?.sentiment_score`
+- Added `/watchlist` route to `App.jsx`
+- Tested locally — renders AAPL with sentiment score
 - Built `AuthPage.jsx` — combined login/register page with toggle between modes
 - State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
 - `handleSubmit` — async function, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields

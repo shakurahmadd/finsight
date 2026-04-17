@@ -594,6 +594,19 @@ axios.get('/portfolio', {
 3. `localStorage.setItem('token', response.data.access_token)`
 4. `navigate('/portfolio')` — redirect to protected page
 
+**`Promise.all()` — parallel API calls:**
+```js
+const results = await Promise.all(
+    items.map(item => axios.get(`/endpoint/${item.id}`))
+)
+```
+`map` fires all API calls simultaneously — each returns a Promise (pending call). `Promise.all` waits for all of them to finish and returns results in the same order. Much faster than sequential `await` in a loop. Use when you need to fetch data for multiple items independently.
+
+**Getting the last item of an array:**
+- Python: `arr[-1]`
+- JavaScript: `arr.at(-1)` or `arr[arr.length - 1]`
+`at(-1)` is the cleanest modern JavaScript approach.
+
 **`useEffect` dependency array controls when the effect re-runs:**
 - `[]` — once on first render (page load). Use for initial data fetches
 - `[someVar]` — re-runs whenever `someVar` changes. Use for fetching data that depends on a selected item
