@@ -594,6 +594,23 @@ axios.get('/portfolio', {
 3. `localStorage.setItem('token', response.data.access_token)`
 4. `navigate('/portfolio')` — redirect to protected page
 
+**`useEffect` dependency array controls when the effect re-runs:**
+- `[]` — once on first render (page load). Use for initial data fetches
+- `[someVar]` — re-runs whenever `someVar` changes. Use for fetching data that depends on a selected item
+- No array — runs after every render (rarely what you want)
+
+**Two-view page pattern:** use a state variable that is either `null` or an ID to toggle between a list view and a detail view:
+```jsx
+{selectedItem === null ? (
+    // list view
+) : (
+    // detail view
+)}
+```
+Setting the state variable switches the view. Setting it back to `null` goes back to the list.
+
+**Re-fetch after mutation:** after POST/DELETE, call the fetch function again to refresh the list rather than manually updating state. Simpler and guarantees the UI matches the server.
+
 **After register success:** switch to login mode rather than auto-logging in — the `/register` endpoint returns a string, not a token. User must log in separately after registering.
 
 **Confirm password validation:** check client-side before making any API call — saves a round trip and gives instant feedback:

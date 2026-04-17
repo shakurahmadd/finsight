@@ -376,6 +376,29 @@
 ### 2026-04-17
 - Built `AuthPage.jsx` — combined login/register page with toggle between modes
 - State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
+- `handleSubmit` — async, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields
+- Confirm password validation — checks `password === confirmPassword` before API call, sets error and returns early if mismatch
+- Toggle button clears all fields and error state when switching modes
+- `Alert` component displays error string when non-empty
+- Added `/auth` route to `App.jsx`
+- Tested full register → login flow end to end — working
+
+- Built `PortfolioDashboard.jsx` — portfolio and holdings management page
+- State variables: `portfolios`, `selectedPortfolio`, `holdings`, `newPortfolioName`, `ticker`, `shares`, `isLoading`, `error`
+- Two views controlled by `selectedPortfolio` — `null` shows portfolio list, ID shows holdings view
+- `fetchPortfolios` — `GET /portfolio` with auth header, stores in `portfolios` state
+- `fetchHoldings` — `GET /holdings/${selectedPortfolio}` with auth header, stores in `holdings` state
+- First `useEffect` with `[]` — fetches portfolios on page load
+- Second `useEffect` with `[selectedPortfolio]` — fetches holdings whenever selected portfolio changes, guarded with `if (selectedPortfolio === null) return`
+- `handleCreatePortfolio` — `POST /portfolio` with `newPortfolioName`, clears input and re-fetches on success
+- `handleDeletePortfolio` — `DELETE /portfolio/{id}` with auth header, re-fetches portfolios on success
+- `handleSelectPortfolio` — sets `selectedPortfolio` to clicked portfolio ID
+- `handleAddHolding` — `POST /holdings/${selectedPortfolio}` with ticker and shares, clears inputs and re-fetches on success
+- `handleDeleteHolding` — `DELETE /holdings/${selectedPortfolio}/${holding_id}` with auth header, re-fetches on success
+- Added `/portfolio` route to `App.jsx`
+- Tested full flow: create portfolio, view holdings, add holding, delete holding, delete portfolio — all working
+- Built `AuthPage.jsx` — combined login/register page with toggle between modes
+- State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
 - `handleSubmit` — async function, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields
 - Confirm password validation — checks `password === confirmPassword` before API call, sets error if mismatch, returns early
 - Toggle button clears all fields and error state when switching modes
