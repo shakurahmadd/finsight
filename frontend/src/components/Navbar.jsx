@@ -12,7 +12,10 @@ function Navbar() {
                 </Typography>
             <Button color="inherit" onClick={() => navigate('/watchlist')}>Watchlist</Button>
             <Button color='inherit' onClick={() => navigate('/portfolio')}>Portfolio</Button>
+            <Button color='inherit' onClick={() => {localStorage.removeItem('token'); navigate('/auth')}}>Sign Out</Button>
         </Toolbar>
+
+
 
     </AppBar>
     )
