@@ -336,4 +336,84 @@
 - Updated `get_current_user` to extract token via `credentials.credentials` from `HTTPAuthorizationCredentials`
 - Added duplicate portfolio name check to `POST /portfolio` — queries by `user_id` + `name`, returns 409 if match found
 - Tested all 6 portfolio/holdings endpoints end-to-end — all working correctly
-- Committed Phase 5 work to `v2-phase5` branch
+- Committed Phase 5 work to `v2-phase5` branch`
+
+### 2026-04-15 (continued)
+- Added `GET /portfolio/{portfolio_id}/summary` — computes weighted average sentiment across all holdings using share count as weight. Pulls most recent sentiment score per ticker from `sentiment_history`. Returns `"No sentiment data is available"` string if no sentiment exists for any holding
+- Added `GET /news/{ticker}` — returns last 10 cached news articles for a ticker ordered by timestamp desc, 404 if none
+- Added `GET /earnings/{ticker}` — fetches earnings history from yfinance, computes EPS surprise percentage, returns list of dicts with date, eps_actual, eps_estimate, surprise
+- Added `GET /filings/{ticker}` — proxies `get_sec_filings` tool response directly to the client
+- Added `CORSMiddleware` to FastAPI — allows requests from `http://localhost:5173` (Vite dev server). Without this, all browser requests from the React frontend are blocked by the browser's same-origin policy
+- Fixed `POST /analyse` invocation: updated from `{'ticker': ...}` to `{'messages': [HumanMessage(content=...)]}` and updated result extraction to `result['messages'][-1].content` — required after ReAct refactor to MessagesState
+- Added `apscheduler` to `requirements.txt` — was missing, causing container crash-loop on EC2
+
+---
+
+## V2 Phase 3 — EC2 Redeploy
+
+### 2026-04-16
+- Redeployed to EC2 after adding `apscheduler` to requirements.txt — container was crash-looping with `ModuleNotFoundError: No module named 'apscheduler'`
+- Ran `docker-compose down`, `docker-compose up --build -d` — full reinstall triggered because requirements.txt changed
+- Added 23 watchlist tickers via bash script hitting `POST /watchlist`: AAPL, MSFT, GOOGL, NVDA, META (Technology), JPM, BAC, GS, MS, V (Financials), AMZN, TSLA, NKE, MCD, WMT (Consumer), XOM, CVX, BP, SHEL (Energy), JNJ, PFE, UNH, ABBV (Healthcare)
+- 23 tickers × 1 NewsAPI request per nightly job = 23 requests per night, leaving 77 requests for daytime use
+- Removed `frontend/.vite/` from git tracking — Vite dependency cache was accidentally committed. Added `.vite` to `frontend/.gitignore` and ran `git rm -r --cached frontend/.vite`
+
+---
+
+## V2 Phase 6 — React Frontend
+
+### 2026-04-16
+- Initialised React frontend with Vite: `npm create vite@latest frontend -- --template react`
+- Installed dependencies: `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/x-data-grid`, `recharts`, `react-router-dom`, `axios`
+- Built `TickerResearchPage.jsx` — main research page with search bar, 5 API calls on submit, renders 5 components. State: `ticker`, `isLoading`, `analysisResult`, `sentimentHistory`, `newsFeed`, `earningsTable`, `secFilingCard`
+- Built `SentimentChart.jsx` — Recharts `LineChart` wrapped in MUI `Card`. X-axis formatted to show date strings. Renders 30-day sentiment trend
+- Built `NewsFeed.jsx` — MUI `Card` list of articles. MUI `Chip` for sentiment label: Bullish=green, Bearish=red, Neutral=grey
+- Built `EarningsTable.jsx` — MUI `DataGrid` with columns: date, epsActual, epsEstimate, surprise (%)
+- Built `SecFilingsCard.jsx` — MUI `Card` with truncated MD&A, risk factors, 8-K summary, insider trades list
+- Configured React Router with `BrowserRouter` in `main.jsx`, routes defined in `App.jsx`
+- Started designing Login/Register page — needs 4 state variables: `email`, `password`, `isLoading`, `error`
+
+### 2026-04-17
+- Built `AuthPage.jsx` — combined login/register page with toggle between modes
+- State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
+- `handleSubmit` — async, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields
+- Confirm password validation — checks `password === confirmPassword` before API call, sets error and returns early if mismatch
+- Toggle button clears all fields and error state when switching modes
+- `Alert` component displays error string when non-empty
+- Added `/auth` route to `App.jsx`
+- Tested full register → login flow end to end — working
+
+- Built `PortfolioDashboard.jsx` — portfolio and holdings management page
+- State variables: `portfolios`, `selectedPortfolio`, `holdings`, `newPortfolioName`, `ticker`, `shares`, `isLoading`, `error`
+- Two views controlled by `selectedPortfolio` — `null` shows portfolio list, ID shows holdings view
+- `fetchPortfolios` — `GET /portfolio` with auth header, stores in `portfolios` state
+- `fetchHoldings` — `GET /holdings/${selectedPortfolio}` with auth header, stores in `holdings` state
+- First `useEffect` with `[]` — fetches portfolios on page load
+- Second `useEffect` with `[selectedPortfolio]` — fetches holdings whenever selected portfolio changes, guarded with `if (selectedPortfolio === null) return`
+- `handleCreatePortfolio` — `POST /portfolio` with `newPortfolioName`, clears input and re-fetches on success
+- `handleDeletePortfolio` — `DELETE /portfolio/{id}` with auth header, re-fetches portfolios on success
+- `handleSelectPortfolio` — sets `selectedPortfolio` to clicked portfolio ID
+- `handleAddHolding` — `POST /holdings/${selectedPortfolio}` with ticker and shares, clears inputs and re-fetches on success
+- `handleDeleteHolding` — `DELETE /holdings/${selectedPortfolio}/${holding_id}` with auth header, re-fetches on success
+- Added `/portfolio` route to `App.jsx`
+- Tested full flow: create portfolio, view holdings, add holding, delete holding, delete portfolio — all working
+
+### 2026-04-18
+- Added `GET /watchlist` endpoint to `api/main.py` — queries all `Watchlist` rows, returns list of `{ ticker }` dicts, 404 if empty
+- Built `WatchlistPage.jsx` — fetches all watchlist tickers then fetches sentiment history for each in parallel using `Promise.all()`
+- `fetch_watchlist` builds a `combined` array of `{ ticker, sentimentHistory }` objects — one entry per watchlisted ticker
+- Displays latest sentiment score using `sentimentHistory.at(-1)?.sentiment_score`
+- Added `/watchlist` route to `App.jsx`
+- Tested locally — renders AAPL with sentiment score
+
+- Built `Navbar.jsx` component — `AppBar` with `Toolbar`, FinSight title navigates to `/`, Watchlist and Portfolio buttons navigate to their routes
+- Added `Navbar` to `App.jsx` above `Routes` — renders on every page automatically
+- Used React fragments `<>...</>` to return multiple elements from `App.jsx` without an extra DOM node
+- Built `AuthPage.jsx` — combined login/register page with toggle between modes
+- State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
+- `handleSubmit` — async function, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields
+- Confirm password validation — checks `password === confirmPassword` before API call, sets error if mismatch, returns early
+- Toggle button clears all fields and error state when switching modes
+- `Alert` component displays error string when non-empty
+- Added `/auth` route to `App.jsx`
+- Tested full register → login flow end to end — working

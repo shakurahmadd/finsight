@@ -539,6 +539,128 @@ Sentiment pulled from `sentiment_history` for most recent date per ticker.
 **Known improvement — value-weighted portfolio aggregation:**
 Current implementation weights sentiment by share count. Correct approach weights by position value (`shares × current_price` from yfinance). This gives accurate portfolio representation since share count alone ignores price differences between stocks. Requires yfinance price lookup per holding at query time. Implement after Phase 6 frontend is complete so the improvement is immediately visible in the UI.
 
+---
+
+## React + Vite + MUI — Frontend Stack
+
+**Vite:** build tool and dev server for React. `npm run dev` starts on port 5173 with hot module reload. `npm run build` produces a static `dist/` folder for production deployment via Nginx.
+
+**MUI v6:** component library for React. Provides pre-built accessible components — `Button`, `TextField`, `Card`, `Chip`, `CircularProgress`, `Alert` etc. Import from `@mui/material`.
+
+**Recharts:** charting library for React. Key component for FinSight: `LineChart` with `XAxis`, `YAxis`, `Line`, `Tooltip`. Wrap in `ResponsiveContainer` to make charts responsive.
+
+**React Router:** client-side routing. `BrowserRouter` wraps the whole app in `main.jsx`. Routes defined in `App.jsx` with `<Routes>` and `<Route path="..." element={...} />`. `useNavigate()` hook for programmatic redirect after login.
+
+**Axios:** HTTP client. Makes API calls from React components. Returns promise — use `.then()` or `async/await`.
+
+**State management pattern:**
+```jsx
+const [data, setData] = useState(null)
+const [isLoading, setIsLoading] = useState(false)
+const [error, setError] = useState(null)
+
+const handleSubmit = async () => {
+  setIsLoading(true)
+  try {
+    const response = await axios.post('/endpoint', { field: value })
+    setData(response.data)
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Something went wrong')
+  } finally {
+    setIsLoading(false)
+  }
+}
+```
+
+**CORS:** browsers block requests from one origin (e.g. `localhost:5173`) to another (e.g. `localhost:8000`) by default. FastAPI's `CORSMiddleware` tells the browser that cross-origin requests from the React dev server are allowed. Without it, every API call from the frontend fails with a CORS error before it even reaches the server.
+
+---
+
+## JWT Authentication — Frontend
+
+**Token storage:** store JWT in `localStorage` after login. `localStorage` persists across page refreshes — a state variable would not. Set with `localStorage.setItem('token', token)`, read with `localStorage.getItem('token')`, clear on logout with `localStorage.removeItem('token')`.
+
+**Attaching the token:** every protected API call needs `Authorization: Bearer <token>` in the request header:
+```js
+const token = localStorage.getItem('token')
+axios.get('/portfolio', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+```
+
+**Login flow:**
+1. User submits form → POST `/login` with `{ email, password }`
+2. Response: `{ access_token: "...", token_type: "bearer" }`
+3. `localStorage.setItem('token', response.data.access_token)`
+4. `navigate('/portfolio')` — redirect to protected page
+
+**Navbar pattern:** shared UI elements go in components, not pages. Add the component above `<Routes>` in `App.jsx` so it renders on every page:
+```jsx
+<>
+    <Navbar />
+    <Routes>...</Routes>
+</>
+```
+React fragments `<>...</>` let you return multiple elements without adding an extra `div` to the DOM.
+
+**`sx` prop:** MUI's inline styling system. Pass a JavaScript object with CSS properties in camelCase:
+```jsx
+<Typography sx={{ cursor: 'pointer', fontWeight: 'bold' }}>
+```
+
+**`Promise.all()` — parallel API calls:**
+```js
+const results = await Promise.all(
+    items.map(item => axios.get(`/endpoint/${item.id}`))
+)
+```
+`map` fires all API calls simultaneously — each returns a Promise (pending call). `Promise.all` waits for all of them to finish and returns results in the same order. Much faster than sequential `await` in a loop. Use when you need to fetch data for multiple items independently.
+
+**Getting the last item of an array:**
+- Python: `arr[-1]`
+- JavaScript: `arr.at(-1)` or `arr[arr.length - 1]`
+`at(-1)` is the cleanest modern JavaScript approach.
+
+**`useEffect` dependency array controls when the effect re-runs:**
+- `[]` — once on first render (page load). Use for initial data fetches
+- `[someVar]` — re-runs whenever `someVar` changes. Use for fetching data that depends on a selected item
+- No array — runs after every render (rarely what you want)
+
+**Two-view page pattern:** use a state variable that is either `null` or an ID to toggle between a list view and a detail view:
+```jsx
+{selectedItem === null ? (
+    // list view
+) : (
+    // detail view
+)}
+```
+Setting the state variable switches the view. Setting it back to `null` goes back to the list.
+
+**Re-fetch after mutation:** after POST/DELETE, call the fetch function again to refresh the list rather than manually updating state. Simpler and guarantees the UI matches the server.
+
+**After register success:** switch to login mode rather than auto-logging in — the `/register` endpoint returns a string, not a token. User must log in separately after registering.
+
+**Confirm password validation:** check client-side before making any API call — saves a round trip and gives instant feedback:
+```js
+if (!isLogin && password !== confirmPassword) {
+    setError('Passwords do not match')
+    setIsLoading(false)
+    return  // early return stops the function
+}
+```
+
+**Toggle mode pattern:** when switching between login and register, clear fields and error state so stale input doesn't carry over. Keep email pre-filled when switching from register to login — saves the user retyping it.
+
+**Axios instance pattern (for larger apps):** create a configured Axios instance with the token pre-attached so you don't repeat the header on every call:
+```js
+const api = axios.create({ baseURL: 'http://localhost:8000' })
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+```
+
 **Protected route pattern:**
 ```python
 @app.post("/portfolio")

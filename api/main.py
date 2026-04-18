@@ -134,6 +134,15 @@ def delete_from_wishlist(ticker: str, db: Session = Depends(get_db)):
         db.delete(row)
         db.commit()
         return f"{ticker} removed from the watchlist."
+    
+@app.get("/watchlist")
+def get_watchlist(db : Session = Depends(get_db)):
+    watchlist_rows = db.query(Watchlist).all()
+    if not watchlist_rows:
+        raise HTTPException(status_code=404, detail="The watchlist is empty")
+    else:
+        return [{"ticker" : rows.ticker} for rows in watchlist_rows]
+
 
     
 @app.get("/sentiment/history/{ticker}", response_model=list[SentimentHistoryResponse])

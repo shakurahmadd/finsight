@@ -106,7 +106,7 @@ def build_feature_vectors():
                 suprise_earnings = (ticker_earnings_history.iloc[0]['epsActual'] - ticker_earnings_history.iloc[0]['epsEstimate']) / np.abs(ticker_earnings_history.iloc[0]['epsEstimate']) * 100 
 
                 sec_filings = get_sec_filings.invoke(row.ticker)
-                form_4 = sec_filings['form_4']
+                form_4 = sec_filings['insider_traders']
                 if isinstance(form_4, list):
                     insider_volume = 0
                     for shares in form_4:
