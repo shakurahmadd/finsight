@@ -594,6 +594,20 @@ axios.get('/portfolio', {
 3. `localStorage.setItem('token', response.data.access_token)`
 4. `navigate('/portfolio')` — redirect to protected page
 
+**Navbar pattern:** shared UI elements go in components, not pages. Add the component above `<Routes>` in `App.jsx` so it renders on every page:
+```jsx
+<>
+    <Navbar />
+    <Routes>...</Routes>
+</>
+```
+React fragments `<>...</>` let you return multiple elements without adding an extra `div` to the DOM.
+
+**`sx` prop:** MUI's inline styling system. Pass a JavaScript object with CSS properties in camelCase:
+```jsx
+<Typography sx={{ cursor: 'pointer', fontWeight: 'bold' }}>
+```
+
 **`Promise.all()` — parallel API calls:**
 ```js
 const results = await Promise.all(

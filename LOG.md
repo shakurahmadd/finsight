@@ -405,6 +405,10 @@
 - Displays latest sentiment score using `sentimentHistory.at(-1)?.sentiment_score`
 - Added `/watchlist` route to `App.jsx`
 - Tested locally — renders AAPL with sentiment score
+
+- Built `Navbar.jsx` component — `AppBar` with `Toolbar`, FinSight title navigates to `/`, Watchlist and Portfolio buttons navigate to their routes
+- Added `Navbar` to `App.jsx` above `Routes` — renders on every page automatically
+- Used React fragments `<>...</>` to return multiple elements from `App.jsx` without an extra DOM node
 - Built `AuthPage.jsx` — combined login/register page with toggle between modes
 - State variables: `isLogin`, `email`, `password`, `isLoading`, `error`, `confirmPassword`
 - `handleSubmit` — async function, calls `/login` or `/register` based on `isLogin`. On login success: stores token in `localStorage`, navigates to `/`. On register success: switches to login mode, clears password fields
