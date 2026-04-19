@@ -18,41 +18,73 @@ tools = [get_news, get_stock_data, analyze_sentiment, get_sec_filings]
 
 llm_with_tools = llm.bind_tools(tools)
 
+BASE_SYSTEM_PROMPT = """You are a senior equity research analyst writing for sophisticated retail investors.
+
+When given a ticker to analyse, use your tools to retrieve news, sentiment, earnings, SEC filings, and stock fundamentals. Then produce a structured research report in exactly this format:
+
+## Verdict
+One sentence: overall assessment of the stock right now (bullish, bearish, or neutral) and why.
+
+## Sentiment Signal
+What the recent news is saying. Is sentiment bullish, bearish, or neutral? Is it shifting? Cite the confidence level.
+
+## Earnings
+Latest EPS actual vs estimate. Surprise percentage. Is there a pattern of beating or missing? What does this suggest about management guidance credibility?
+
+## SEC Signals
+Anything notable from recent filings. Highlight material 8-K events (CEO departure, restatement, acquisition). Call out significant insider buying or selling from Form 4. If nothing notable, say so briefly.
+
+## Key Risks
+The most important risks from the 10-K risk factors section. Be specific — not generic boilerplate. Flag anything unusual as a RED FLAG.
+
+## Fundamentals
+PE ratio, market cap, sector. Interpret the numbers in context — not just the raw values. Compare to sector norms where possible.
+
+Rules:
+- Cite specific numbers from the data — never make them up
+- If a signal is anomalous, label it RED FLAG in bold
+- Be concise and direct — no filler phrases like "it is worth noting that"
+- Do not describe what tools you called — just report the findings
+"""
+
+
 def agent_node(state):
     messages = state['messages']
     sector = None
     for message in messages:
         if isinstance(message, ToolMessage) and "sector" in message.content:
-            message_to_dict = json.loads(message.content)
-            sector = message_to_dict['fundamentals']['sector']
+            try:
+                message_to_dict = json.loads(message.content)
+                sector = message_to_dict['fundamentals']['sector']
+            except (json.JSONDecodeError, KeyError):
+                pass
             break
+
+    system_prompt = BASE_SYSTEM_PROMPT
+
     if sector:
         session = SessionLocal()
         try:
             sector_benchmarks = session.query(DkKnowledge).filter(DkKnowledge.sector == sector).all()
             macro_mappings = session.query(SectorMacroMapping).filter(SectorMacroMapping.sector == sector).all()
-
             indicator_ids = [m.indicator_id for m in macro_mappings]
             macro_indicators = session.query(MacroIndicator).filter(MacroIndicator.id.in_(indicator_ids)).all()
 
-            # system prompt string
-            prompt = f"You are a financial research analyst. Use the following domain knowledge to ground your reasoning:\n\nSector Benchmarks ({sector}):\n"
+            if sector_benchmarks:
+                system_prompt += f"\n\nSector Benchmarks ({sector}):\n"
+                for b in sector_benchmarks:
+                    system_prompt += f"- {b.metric_name}: avg={b.sector_avg}, upper={b.upper_threshold}, lower={b.lower_threshold}\n"
 
-            # append sector benchmarks
-            for b in sector_benchmarks:
-                prompt += f"- {b.metric_name}: avg={b.sector_avg}, upper={b.upper_threshold}, lower={b.lower_threshold}\n"
-
-            # append macro indicators
-            prompt += f"\nMacro Indicators:\n"
-            for m in macro_indicators:
-                prompt += f"- {m.indicator_name}: {m.current_value} (change: {m.change})\n"
-
-            messages = [SystemMessage(content=prompt)] + messages
+            if macro_indicators:
+                system_prompt += f"\nMacro Indicators:\n"
+                for m in macro_indicators:
+                    system_prompt += f"- {m.indicator_name}: {m.current_value} (change: {m.change})\n"
         finally:
             session.close()
 
+    messages = [SystemMessage(content=system_prompt)] + messages
     response = llm_with_tools.invoke(messages)
-    return {'messages' : response}
+    return {'messages': response}
 
 
 
