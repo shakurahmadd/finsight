@@ -115,9 +115,9 @@ def build_feature_vectors():
                     insider_volume = 0
                 c = Company(row.ticker)
                 cutoff = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
-                ten_k = c.get_filings(form='10-K').filter(date_filed= f"{cutoff}:")
-                eight_k = c.get_filings(form='8-K').filter(date_filed= f"{cutoff}:")
-                form_four = c.get_filings(form='4').filter(date_filed= f"{cutoff}:")
+                ten_k = c.get_filings(form='10-K').filter(date= f"{cutoff}:")
+                eight_k = c.get_filings(form='8-K').filter(date= f"{cutoff}:")
+                form_four = c.get_filings(form='4').filter(date= f"{cutoff}:")
                 
                 filing_frequency = len(ten_k) + len(eight_k) + len(form_four)
 
