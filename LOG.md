@@ -417,3 +417,81 @@
 - `Alert` component displays error string when non-empty
 - Added `/auth` route to `App.jsx`
 - Tested full register → login flow end to end — working
+
+---
+
+## V2 Phase 6 (continued) — Dark Theme Styling
+
+### 2026-04-18
+- Created `v2-phase6-styling` branch for all styling work
+- Applied Ground News-inspired dark theme globally via MUI `ThemeProvider` + `createTheme` in `main.jsx`:
+  - Background: `#0d1117`, paper: `#161b22`, primary: `#58a6ff`
+  - Success: `#3fb950`, error: `#f85149`, divider: `#30363d`
+  - Component overrides: `MuiCard` (border), `MuiButton` (no text transform), `MuiAppBar` (no box shadow), `MuiTextField` (small default size), `MuiDataGrid` (dark header/cells)
+- Replaced `index.css` with minimal CSS (body background, box-sizing only)
+- Restyled all pages and components:
+  - `Navbar.jsx` — sticky dark AppBar, FinSight in blue, nav buttons with hover effects, Sign Out outlined button
+  - `AuthPage.jsx` — centered card with FinSight branding, stacked form, toggle login/register
+  - `WatchlistPage.jsx` — card rows with Bullish/Bearish/Neutral chips and sentiment score
+  - `PortfolioDashboard.jsx` — card layout with `×` and `←` text icon buttons
+  - `TickerResearchPage.jsx` — hero search area with subtitle, `Promise.allSettled` for parallel data fetching, labeled sections
+  - `SentimentChart.jsx` — `ResponsiveContainer`, dark tooltip, reference line at y=0
+  - `NewsFeed.jsx` — flex rows with title + chip + confidence %
+  - `EarningsTable.jsx` — colour-coded surprise %, DataGrid with pagination
+  - `SecFilingsCard.jsx` — Divider-separated sections, blue headings, insider trade chips
+- Fixed `@mui/icons-material` incompatibility with Vite 8/rolldown — subpath imports (`@mui/icons-material/DeleteOutline`) fail under strict exports resolution. Removed the package entirely, replaced with `×` and `←` Unicode characters
+- Build verified clean, dev server running on port 5174
+- Merged `v2-phase6-styling` into `main` and deployed to EC2
+
+---
+
+## EC2 Operations + Bug Fixes
+
+### 2026-04-18
+- EC2 instance type changed from t3.micro to t3.small — OOM kills during nightly job on 1GB RAM
+- IP changed after stop/start: old `13.48.106.201` → new `51.21.129.219`
+- SSH username confirmed as `ec2-user` (Amazon Linux 2023, not Ubuntu)
+- Added 1GB swap file to EC2 to prevent OOM kills during model loading at startup:
+  - `sudo fallocate -l 1G /swapfile` → `sudo chmod 600 /swapfile` → `sudo mkswap /swapfile` → `sudo swapon /swapfile`
+  - Made permanent via `echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab`
+- Fixed `build_feature_vectors()` bug: `sec_filings['form_4']` → `sec_filings['insider_traders']` — key name mismatch between `get_sec_filings` tool return dict and `jobs.py` consumer
+- Fixed second `build_feature_vectors()` bug: `filter(date_filed=...)` → `filter(date=...)` — edgartools `filter()` does not accept `date_filed` as a keyword argument
+- Deployed fixes to EC2, confirmed nightly job running: 3 rows per ticker across all 23 tickers as of 2026-04-19
+
+### 2026-04-19
+- Added `BASE_SYSTEM_PROMPT` to `agent/graph.py` — always injected as first `SystemMessage` regardless of sector data
+- Prompt defines role (senior equity research analyst), 6 output sections (Verdict, Sentiment Signal, Earnings, SEC Signals, Key Risks, Fundamentals), and rules (cite specific numbers, flag anomalies as RED FLAG, no filler phrases)
+- DK-CoT sector context is appended to the base prompt when sector data exists — two-layer system
+- Verified improved output quality — structured sections with verdict, specific numbers, red flags
+- Deleted stale cached AAPL analysis from local DB to force fresh agent run with new prompt
+
+---
+
+## RAG for SEC Filings (F2 Upgrade)
+
+### 2026-04-21
+- Switched Docker PostgreSQL image from `postgres:15` to `pgvector/pgvector:pg15` — standard postgres image does not include pgvector extension
+- Added `pgvector` to `requirements.txt` and installed locally
+- Generated Alembic migration `d3db2ad29937_add_filing_chunks_table.py` manually — autogenerate can't handle pgvector's `Vector` type
+- Migration runs `CREATE EXTENSION IF NOT EXISTS vector` then creates `filing_chunks` table:
+  - `id`, `ticker`, `section`, `chunk_text`, `embedding` (Vector(384)), `filing_date`, `created_at`
+- Added `FilingChunk` SQLAlchemy model to `db/models.py` using `pgvector.sqlalchemy.Vector(384)`
+- Created `rag/filing_rag.py` with full RAG pipeline:
+  - `chunk_text(text, chunk_size=500, overlap=50)` — sliding window chunker with 50-token overlap to prevent context loss at chunk boundaries
+  - `embed_chunks(chunks)` — encodes list of strings using `all-MiniLM-L6-v2` (384 dimensions, lightweight, normalised outputs)
+  - `store_chunks(ticker, section, chunks, embeddings, filing_date)` — bulk inserts all chunks as individual rows
+  - `fetch_sec_filings(ticker)` — fetches full MD&A, risk factors, and 8-K text via edgartools without truncation. Returns list of `{section, text, date}` dicts
+  - `process_filing(ticker)` — orchestrates fetch → chunk → embed → store for all three sections
+  - `retrieve_chunks(query, ticker, top_k=5)` — embeds query, uses pgvector `<=>` cosine distance operator to return top-k most relevant chunks
+- Exposed Docker PostgreSQL port 5433 on host in `docker-compose.yml` — allows local scripts to connect to Docker DB directly
+- Updated local `.env` `DB_URL` to `postgresql://shakurahmad:postgres@localhost:5433/finsight`
+- Tested end to end: `process_filing('AAPL')` stored 200 chunks (43 MD&A, 137 risk factors, 20 8-K)
+- Tested retrieval: query "What are the main supply chain risks?" returned 5 relevant risk_factors chunks covering China manufacturing, natural disasters, tariffs — correct semantic retrieval confirmed
+
+**Key decisions:**
+- `all-MiniLM-L6-v2` chosen for embeddings — 384 dimensions, fast, good retrieval quality, memory-efficient on t3.small
+- pgvector over FAISS — keeps everything in one PostgreSQL database, no separate vector store to manage
+- No LangChain — built pipeline directly with sentence-transformers and SQLAlchemy for full understanding and control
+- Section-aware chunking — split by section first (MD&A, risk factors, 8-K) before chunking, prevents semantically unrelated content mixing within chunks
+- Overlap of 50 tokens — prevents signal loss at chunk boundaries where a concept spans two chunks
+- `fetch_sec_filings` in `filing_rag.py` fetches full text (no truncation) — separate from `get_sec_filings` in `tools.py` which still truncates for direct LLM tool calls

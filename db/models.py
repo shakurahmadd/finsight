@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, ForeignKey
 from db.database import Base
 from datetime import datetime, timezone
+from pgvector.sqlalchemy import Vector
 
 class NewsArticle(Base):
     __tablename__ = "news_articles"
@@ -108,4 +109,16 @@ class Holdings(Base):
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
     ticker = Column(String, nullable=False)
     shares = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)
+
+
+class FilingChunk(Base):
+    __tablename__ = 'filing_chunks'
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, nullable=False)
+    section = Column(String, nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    embedding = Column(Vector(384), nullable=False)
+    filing_date = Column(DateTime, nullable=False)
     created_at = Column(DateTime(timezone=True), default= lambda: datetime.now(timezone.utc),nullable=False)

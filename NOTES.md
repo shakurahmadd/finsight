@@ -44,6 +44,24 @@ Building the graph manually gives us full control over the agent node. In V2 we'
 
 ---
 
+**Q: How did you improve the quality of the LLM research summary, and what does your system prompt do?**
+
+The initial implementation passed only `"Analyse: AAPL"` to the LLM with no system prompt — the model produced generic, vague summaries that described what tools were called rather than synthesising the findings. The fix was a structured `BASE_SYSTEM_PROMPT` injected as a `SystemMessage` at the start of every agent invocation. The prompt defines the role ("senior equity research analyst writing for sophisticated retail investors"), specifies six mandatory output sections (Verdict, Sentiment Signal, Earnings, SEC Signals, Key Risks, Fundamentals), and includes explicit rules: cite specific numbers from tool data, label anomalous signals as RED FLAG, and avoid filler phrases. The DK-CoT sector context is appended to this base prompt when sector benchmarks exist — so the LLM always has role and format grounding, and gets additional macro context when available. The system prompt is always the first message in the list; DK-CoT data is appended to it rather than replacing it.
+
+---
+
+**Q: Walk me through your RAG implementation for SEC filings — why did you build it yourself instead of using LangChain, and what chunking strategy did you use?**
+
+The current system truncates 10-K and 10-Q text to 300 characters — almost all signal is lost. RAG replaces this by chunking the full filing, embedding each chunk, storing embeddings in PostgreSQL via pgvector, and at query time retrieving only the most relevant chunks via cosine similarity. I built it directly rather than using LangChain's PGVector wrapper because I wanted full control and understanding of each component — the chunking logic, the embedding model choice, the similarity query. LangChain would have abstracted all of that away. The chunking strategy is section-aware: I split by section first (MD&A, risk factors, 8-K) before applying the sliding window chunker. This prevents semantically unrelated content from mixing within a single chunk, which would confuse retrieval. Within each section, chunks are 500 tokens with 50-token overlap — overlap prevents signal loss at boundaries where a concept spans two adjacent chunks. I chose `all-MiniLM-L6-v2` for embeddings because it's 384-dimensional, fast, and memory-efficient on the t3.small instance. Its outputs are already normalised so no manual normalisation is needed before cosine similarity. pgvector was chosen over FAISS because it keeps everything in one PostgreSQL database — no separate vector store to manage or synchronise.
+
+---
+
+**Q: You added swap space to your EC2 instance. Why, and what does swap actually do?**
+
+The t3.small has 2GB RAM. When the container starts, it loads DistilBERT (~500MB) into memory. If multiple restarts happen in quick succession — as they did when the container was crash-looping — peak RAM usage spikes above 2GB and the Linux OOM killer terminates the process immediately. Swap is a file on disk that Linux uses as overflow memory — when RAM fills up, the least-recently-used memory pages are moved to the swap file rather than triggering an OOM kill. Disk is much slower than RAM, so swap degrades performance, but it keeps the process alive. The swap was made permanent by adding an entry to `/etc/fstab` so it survives reboots. The root cause — crash-looping — was fixed separately by adding the missing `apscheduler` dependency. Swap remains as a safety net for legitimate memory spikes during model loading.
+
+---
+
 ## LoRA (Low-Rank Adaptation)
 
 Instead of updating a weight matrix W directly, LoRA learns two small matrices A and B where the update is A × B. If W is 768×768 (589K params), and A is 768×r and B is r×768, you only train 2×768×r params. At rank r=8: 12,288 params vs 589,824 — ~48x fewer. Original weights are frozen; only A and B are trained.

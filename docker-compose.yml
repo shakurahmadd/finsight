@@ -13,7 +13,9 @@ services:
 
   db:
     restart: unless-stopped
-    image: postgres:15
+    image: pgvector/pgvector:pg15
+    ports:
+      - "5433:5432"
     environment:
       - POSTGRES_USER=shakurahmad
       - POSTGRES_PASSWORD=postgres
