@@ -5,6 +5,7 @@ from edgar import Company, set_identity
 from datetime import date
 from sqlalchemy import func 
 
+
 model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 
@@ -44,12 +45,17 @@ def fetch_sec_filings(ticker: str):
     set_identity("Shakur Ahmad shakur-ahmad@outlook.com")
     c = Company(ticker)
     ten_k_filing = c.get_filings(form='10-K').latest()
+    if ten_k_filing is None:
+        raise Exception
     ten_k_date = ten_k_filing.filing_date
     ten_k = ten_k_filing.obj()
     try:
         eight_k_filing = c.get_filings(form='8-K').latest()
-        eight_k_date = eight_k_filing.filing_date
-        eight_k = eight_k_filing.obj()
+        if eight_k_filing is None:
+            raise Exception
+        else:
+            eight_k_date = eight_k_filing.filing_date
+            eight_k = eight_k_filing.obj()
 
     except:
         eight_k = None
