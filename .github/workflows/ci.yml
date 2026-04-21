@@ -8,7 +8,7 @@ jobs:
       NEWS_API: ${{ secrets.NEWS_API }}
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: shakurahmad
           POSTGRES_PASSWORD: postgres
