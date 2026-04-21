@@ -1,4 +1,4 @@
-from agent.tools import get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks
+from agent.tools import get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks, get_earnings
 from dotenv import load_dotenv
 import os
 from langchain_groq import ChatGroq
@@ -15,13 +15,13 @@ load_dotenv()
 groq_key = os.getenv("GROQ_API")
 llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_key)
 
-tools = [get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks]
+tools = [get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks, get_earnings]
 
-llm_with_tools = llm.bind_tools(tools)
+llm_with_tools = llm.bind_tools(tools).bind(parallel_tool_calls=False)
 
 BASE_SYSTEM_PROMPT = """You are a senior equity research analyst writing for sophisticated retail investors.
 
-You have access to the following tools: get_news, analyze_sentiment, get_stock_data, and retrieve_rag_chunks. You decide which tools to call, in what order, and how many times — but every factual claim in the report must trace back to a tool result. If you cannot ground a claim with a tool call, do not make it.
+You have access to the following tools: get_news, analyze_sentiment, get_stock_data, get_earnings and retrieve_rag_chunks. You decide which tools to call, in what order, and how many times — but every factual claim in the report must trace back to a tool result. If you cannot ground a claim with a tool call, do not make it.
 
 Before writing the report, use get_stock_data to identify the ticker's sector, then apply the relevant sector baselines when interpreting fundamentals. You are expected to reason about what each tool result tells you and decide whether further calls are needed — for example, if sentiment is anomalous, investigate further before concluding.
 

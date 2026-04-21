@@ -142,3 +142,31 @@ def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
     top_k_chunks = retrieve_chunks(query, ticker)
     return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text[:300]} for top_k_chunk in top_k_chunks]
 
+
+
+
+@tool
+def get_earnings(ticker : str ):
+    """
+    Use this tool to retrieve historical EPS (earnings per share) data for a ticker.
+    Returns actual vs estimated EPS and the surprise percentage for each quarter.
+    Use this to assess whether management guidance is credible and whether the company
+    has a pattern of beating or missing estimates.
+    Args:
+        ticker: company ticker as a string
+    Returns:
+        list of dicts, each containing:
+        - 'date': the earnings date
+        - 'eps_actual': reported EPS for that quarter
+        - 'eps_estimate': analyst consensus estimate
+        - 'surprise': percentage by which actual beat or missed estimate 
+                      (positive = beat, negative = miss)
+    """
+    ticker_obj = yf.Ticker(ticker)
+    ticker_history = ticker_obj.earnings_history
+    eps_actuals = ticker_history['epsActual']
+    eps_estimates = ticker_history['epsEstimate']
+    dates = ticker_history.index
+    surprises = ((eps_actuals - eps_estimates) / abs(eps_estimates) * 100 )
+    return [{'date' : str(date), 'eps_actual' : eps_actual, 'eps_estimate' : eps_estimate, 'surprise' : surprise}
+             for date, eps_actual, eps_estimate, surprise in zip(dates, eps_actuals, eps_estimates, surprises)] 
