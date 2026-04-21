@@ -21,3 +21,4 @@ python-jose
 bcrypt==4.0.1
 apscheduler
 pgvector
+sentence_transformers
