@@ -72,8 +72,8 @@ def fetch_sec_filings(ticker: str):
 
 def process_filing(ticker):
     db = SessionLocal()
-    sec_filings = fetch_sec_filings(ticker)
     try:
+        sec_filings = fetch_sec_filings(ticker)
         for sec_filing in sec_filings:
             if not sec_filing['text']:
                 continue
@@ -82,6 +82,8 @@ def process_filing(ticker):
                 chunks = chunk_text(sec_filing['text'])
                 embeddings = embed_chunks(chunks)
                 store = store_chunks(ticker, sec_filing['section'], chunks, embeddings, sec_filing['date'])
+    except Exception as e:
+        print(e)
     finally:
         db.close()
 
