@@ -88,7 +88,7 @@ def process_filing(ticker):
         db.close()
 
 
-def retrieve_chunks(query, ticker, top_k = 5):
+def retrieve_chunks(query, ticker, top_k = 3):
     embeded = model.encode(query)
     db = SessionLocal()
     try:
@@ -98,11 +98,6 @@ def retrieve_chunks(query, ticker, top_k = 5):
     return top_k_chunks 
 
 
-if __name__ == "__main__":                                                                                                                                
-    chunks = retrieve_chunks("What are the main supply chain risks?", "AAPL")                                                                             
-    for c in chunks:                                                                                                                                      
-        print(c.section, c.chunk_text[:200])                                                                                                              
-        print("---")  
 
 
             

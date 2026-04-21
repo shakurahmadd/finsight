@@ -135,5 +135,5 @@ def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
     based on the query.  
     """
     top_k_chunks = retrieve_chunks(query, ticker)
-    return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text} for top_k_chunk in top_k_chunks]
+    return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text[:300]} for top_k_chunk in top_k_chunks]
 
