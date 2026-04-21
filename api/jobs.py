@@ -6,7 +6,7 @@ from db.models import Watchlist, SentimentHistory, NewsArticle, AnomalyFeatures
 import yfinance as yf
 from edgar import Company
 from sqlalchemy import func
-from agent.tools import analyze_sentiment
+from rag.filing_rag import process_filing
 
 
 def fetch_and_cache_news():
@@ -139,3 +139,18 @@ def build_feature_vectors():
 
     finally:
         db.close()
+    process_all_filings()
+
+
+
+def process_all_filings():
+    db = SessionLocal()
+    try:
+        watch_list_rows = db.query(Watchlist).all()
+        for watch_list_row in watch_list_rows:
+            process_filing(watch_list_row.ticker)
+
+    finally:
+        db.close()
+
+    

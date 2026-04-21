@@ -1,4 +1,4 @@
-from agent.tools import get_news, get_stock_data, analyze_sentiment, get_sec_filings
+from agent.tools import get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks
 from dotenv import load_dotenv
 import os
 from langchain_groq import ChatGroq
@@ -9,12 +9,13 @@ import json
 from db.database import SessionLocal
 from db.models import DkKnowledge, SectorMacroMapping, MacroIndicator
 
+
 load_dotenv()
 
 groq_key = os.getenv("GROQ_API")
 llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_key)
 
-tools = [get_news, get_stock_data, analyze_sentiment, get_sec_filings]
+tools = [get_news, get_stock_data, analyze_sentiment, retrieve_rag_chunks]
 
 llm_with_tools = llm.bind_tools(tools)
 

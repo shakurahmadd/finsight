@@ -8,7 +8,8 @@ import yfinance as yf
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
 from langchain_core.tools import tool
-from edgar import Company, set_identity                                                                                                                   
+from edgar import Company, set_identity      
+from rag.filing_rag import retrieve_chunks                                                                                                             
 
 
 load_dotenv()
@@ -125,4 +126,14 @@ def get_sec_filings(ticker: str):
     return sec_dict
 
 
+@tool
+def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
+    """
+    Retrieve relevant SEC filing chunks for a given ticker and query.                                                                                         
+    Use this tool when you need information about risk factors, management discussion,                                                                        
+    or material events (8-K) from SEC filings. Returns the most relevant sections
+    based on the query.  
+    """
+    top_k_chunks = retrieve_chunks(query, ticker)
+    return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text} for top_k_chunk in top_k_chunks]
 

@@ -2,6 +2,8 @@ from sentence_transformers import SentenceTransformer
 from db.database import SessionLocal
 from db.models import FilingChunk
 from edgar import Company, set_identity
+from datetime import date
+from sqlalchemy import func 
 
 model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
@@ -63,13 +65,19 @@ def fetch_sec_filings(ticker: str):
 
 
 def process_filing(ticker):
+    db = SessionLocal()
     sec_filings = fetch_sec_filings(ticker)
-    for sec_filing in sec_filings:
-        if not sec_filing['text']:
-            continue
-        chunks = chunk_text(sec_filing['text'])
-        embeddings = embed_chunks(chunks)
-        store = store_chunks(ticker, sec_filing['section'], chunks, embeddings, sec_filing['date'])
+    try:
+        for sec_filing in sec_filings:
+            if not sec_filing['text']:
+                continue
+            if db.query(FilingChunk).filter(FilingChunk.ticker == ticker).\
+                filter(func.date(FilingChunk.filing_date) == sec_filing['date']).first() == None:
+                chunks = chunk_text(sec_filing['text'])
+                embeddings = embed_chunks(chunks)
+                store = store_chunks(ticker, sec_filing['section'], chunks, embeddings, sec_filing['date'])
+    finally:
+        db.close()
 
 
 def retrieve_chunks(query, ticker, top_k = 5):
