@@ -25,12 +25,11 @@ tokenizer = AutoTokenizer.from_pretrained("shakurahmad/finsight-distilbert")
 @tool
 def get_news(ticker: str):
     """
-    Takes in user ticker and finds top 
-    10 articles about the stock
+    Use this tool to get the latest news articles for a specific ticker.
     Args:
-        ticker
+        ticker: company ticker as a string
     Returns:
-        Articles as list of dictionaries
+        list of article dicts, each containing 'title', 'description', 'publishedAt', and 'url'
     """
     newsapi = NewsApiClient(api_key=news_api)
     all_articles = newsapi.get_everything(q=ticker,
@@ -44,11 +43,11 @@ def get_news(ticker: str):
 @tool
 def get_stock_data(ticker: str):
     """
-    Takes ticker value and collects relevant stock data from yfinance
+    Use this tool to find numerical data about a ticker. This includes historical data and stock fundementals
     Args:
         ticker
     Returns:
-        dictionary with stock history and fundamentals
+        dictionary with stock history and fundamentals including marketCap, trailingPE, sector, and company name
     """
     ticker_obj = yf.Ticker(ticker)
     historical_data = ticker_obj.history(start= (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d'), 
@@ -67,11 +66,13 @@ def get_stock_data(ticker: str):
 @tool  
 def analyze_sentiment(titles: list[str]) -> list[dict]:
     """
-    Takes a list of article title strings and returns sentiment labels.
+    Use this tool to compute sentiment on news article headlines.
+    Call get_news first and extract the 'title' field from each article,
+    then pass the list of titles here.
     Args:
-        titles: list of article title strings
+        titles: list of headline strings extracted from get_news results
     Returns:
-        list of dicts with title and sentiment label
+        list of dicts with 'title', 'label' (Bullish/Bearish/Neutral), and 'confidence' score
     """
     encoded_titles = tokenizer(titles, padding=True, truncation=True, max_length=128, return_tensors='pt')
     attention_mask = encoded_titles['attention_mask']
@@ -133,6 +134,10 @@ def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
     Use this tool when you need information about risk factors, management discussion,                                                                        
     or material events (8-K) from SEC filings. Returns the most relevant sections
     based on the query.  
+    Args:
+        query: a specific question or topic to retrieve, e.g. "liquidity risk" or "revenue concentration"
+        ticker: the company ticker, used to scope the search to that company's filings
+        top_k: number of chunks to return (default 5)
     """
     top_k_chunks = retrieve_chunks(query, ticker)
     return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text[:300]} for top_k_chunk in top_k_chunks]

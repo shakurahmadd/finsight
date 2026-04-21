@@ -495,3 +495,46 @@
 - Section-aware chunking — split by section first (MD&A, risk factors, 8-K) before chunking, prevents semantically unrelated content mixing within chunks
 - Overlap of 50 tokens — prevents signal loss at chunk boundaries where a concept spans two chunks
 - `fetch_sec_filings` in `filing_rag.py` fetches full text (no truncation) — separate from `get_sec_filings` in `tools.py` which still truncates for direct LLM tool calls
+
+---
+
+## RAG Wired into Agent + EC2 Deployment
+
+### 2026-04-21 (continued)
+- Fixed CI pipeline: updated `.github/workflows/ci.yml` postgres service image from `postgres:15` to `pgvector/pgvector:pg15` — standard image does not have vector extension, `alembic upgrade head` was failing with `extension "vector" is not available`
+- Added `sentence-transformers` to `requirements.txt` — was missing, causing CI import error
+- Built `retrieve_rag_chunks` `@tool` in `agent/tools.py`:
+  - Signature: `retrieve_rag_chunks(query: str, ticker: str, top_k: int = 3)`
+  - Calls `retrieve_chunks` from `rag/filing_rag.py` and returns list of `{section, chunk_text[:300]}` dicts
+  - Docstring tells the LLM when to call it: risk factors, management discussion, material 8-K events
+  - Replaced `get_sec_filings` in the `tools` list in `agent/graph.py` — agent now uses RAG instead of truncated text
+  - `get_sec_filings` kept in `tools.py` — still used by `jobs.py` and `api/main.py`
+- Added idempotency check to `process_filing` — queries DB for existing chunk with same `func.date(filing_date)` before processing, skips if already stored. Prevents re-embedding unchanged filings nightly
+- Added null guard to `fetch_sec_filings` — raises `Exception` if `get_filings(form='10-K').latest()` returns `None`. Handles BP and SHEL which don't file with SEC
+- Added `process_all_filings()` to `api/jobs.py` — loops over all watchlisted tickers and calls `process_filing` for each. Called at end of `build_feature_vectors` nightly chain
+- Deployed to EC2: ran `docker system prune -a` to free disk (was 99% full from old image layers), rebuilt with pgvector image, ran `process_all_filings` manually
+- Result: 21 of 23 tickers populated (BP and SHEL skipped — no SEC 10-K filings as expected)
+- Reduced `top_k` from 5 to 3 and truncated chunk text to 300 chars — Groq was returning `tool_use_failed` 400 error when context was too large
+
+**Key decisions:**
+- `process_filing` idempotency check uses `func.date()` on `filing_date` column — strips time component for comparison since edgartools returns a `date` object but the column stores `DateTime`
+- `process_all_filings` is a separate function from `build_feature_vectors` — different failure domains, SEC filing ingestion should not be blocked by a failed feature vector calculation
+- BP and SHEL missing from `filing_chunks` is expected behaviour — both are UK/European companies that don't file 10-Ks with the SEC
+
+---
+
+## LangSmith Integration + Agent Tool Call Bug
+
+### 2026-04-21 (continued)
+- Added LangSmith tracing to EC2 `.env`:
+  - `LANGSMITH_TRACING=true`
+  - `LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com` — EU region account required different endpoint from default US
+  - `LANGSMITH_API_KEY` — Personal Access Token, 1 year expiry
+  - `LANGSMITH_PROJECT=finsight`
+  - Note: variable prefix is `LANGSMITH_` not `LANGCHAIN_` — newer SDK versions require this prefix
+- Confirmed tracing working in LangSmith UI (smith.langchain.com, EU region)
+- **Critical finding via LangSmith**: agent is making zero tool calls — `tool_calls: []` on every run. The LLM sees the system prompt instruction "produce a structured research report" and generates the report directly from training data, skipping all tools entirely. EPS, PE ratio, and other numbers in reports are hallucinated, not retrieved
+- Root causes identified:
+  1. System prompt instructs the LLM to produce a report without explicitly requiring tool calls first
+  2. Tool docstrings describe implementation rather than when to call the tool
+- Fix needed: update `BASE_SYSTEM_PROMPT` to explicitly require all tools to be called before generating the report. Update tool docstrings to use "use this tool when..." framing
