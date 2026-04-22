@@ -23,8 +23,8 @@ function AuthPage() {
             }
 
             const loginResponse = isLogin
-                ? await axios.post('http://localhost:8000/login', { email, password })
-                : await axios.post('http://localhost:8000/register', { email, password })
+                ? await axios.post(`${import.meta.env.VITE_API_URL}/api/login`, { email, password })
+                : await axios.post(`${import.meta.env.VITE_API_URL}/api/register`, { email, password })
 
             if (isLogin) {
                 localStorage.setItem('token', loginResponse.data.access_token)

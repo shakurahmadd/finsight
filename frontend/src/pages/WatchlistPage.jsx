@@ -24,11 +24,11 @@ function WatchlistPage() {
     const fetch_watchlist = async () => {
         setIsLoading(true)
         try {
-            const getWatchlistResponse = await axios.get(`http://localhost:8000/watchlist`)
+            const getWatchlistResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/watchlist`)
             const ticker = getWatchlistResponse.data
 
             const sentimentResponses = await Promise.all(
-                ticker.map(row => axios.get(`http://localhost:8000/sentiment/history/${row.ticker}`))
+                ticker.map(row => axios.get(`${import.meta.env.VITE_API_URL}/api/sentiment/history/${row.ticker}`))
             )
 
             const combined = ticker.map((row, index) => ({

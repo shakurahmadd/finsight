@@ -81,7 +81,7 @@ app.add_middleware(
 
 
 # Add analyse endpoint with pipe to LangGraph
-@app.post("/analyse", response_model=AnalyseResponse)
+@app.post("/api/analyse", response_model=AnalyseResponse)
 def analyse(request: AnalyseRequest, db: Session = Depends(get_db)):
     check = db.query(AnalysisResult).filter_by(ticker=request.ticker).first()
    
@@ -102,7 +102,7 @@ def analyse(request: AnalyseRequest, db: Session = Depends(get_db)):
         return AnalyseResponse(ticker = request.ticker, summary=check.summary, timestamp=check.timestamp)
     
 
-@app.get("/results/{ticker}")
+@app.get("/api/results/{ticker}")
 def get_results(ticker: str, db: Session = Depends(get_db)):
     check = db.query(AnalysisResult).filter_by(ticker=ticker).first()
     if check is None:
@@ -112,7 +112,7 @@ def get_results(ticker: str, db: Session = Depends(get_db)):
 
 
 
-@app.post("/watchlist", status_code=201)
+@app.post("/api/watchlist", status_code=201)
 def add_to_watchlist(request : WatchlistRequest, db : Session = Depends(get_db)):
     try:
         new_watchlist_item = Watchlist(ticker = request.ticker)
@@ -125,7 +125,7 @@ def add_to_watchlist(request : WatchlistRequest, db : Session = Depends(get_db))
         raise HTTPException(status_code=409, detail=f"{request.ticker} is already in the watchlist.")
 
 
-@app.delete("/watchlist/{ticker}")
+@app.delete("/api/watchlist/{ticker}")
 def delete_from_wishlist(ticker: str, db: Session = Depends(get_db)):
     row = db.query(Watchlist).filter(Watchlist.ticker == ticker).first()
     if row is None:
@@ -135,7 +135,7 @@ def delete_from_wishlist(ticker: str, db: Session = Depends(get_db)):
         db.commit()
         return f"{ticker} removed from the watchlist."
     
-@app.get("/watchlist")
+@app.get("/api/watchlist")
 def get_watchlist(db : Session = Depends(get_db)):
     watchlist_rows = db.query(Watchlist).all()
     if not watchlist_rows:
@@ -145,7 +145,7 @@ def get_watchlist(db : Session = Depends(get_db)):
 
 
     
-@app.get("/sentiment/history/{ticker}", response_model=list[SentimentHistoryResponse])
+@app.get("/api/sentiment/history/{ticker}", response_model=list[SentimentHistoryResponse])
 def get_sentiment_history(ticker: str, db: Session = Depends(get_db)):
     cutoff = datetime.now() - timedelta(days=30)
 
@@ -159,7 +159,7 @@ def get_sentiment_history(ticker: str, db: Session = Depends(get_db)):
 
 
 # Registration endpoint
-@app.post("/register", status_code=201)
+@app.post("/api/register", status_code=201)
 def register(request : AuthRequest, db : Session = Depends(get_db)):
     check_duplicates = db.query(User).filter(User.email == request.email).first()
     if check_duplicates == None:
@@ -174,7 +174,7 @@ def register(request : AuthRequest, db : Session = Depends(get_db)):
 
 
 # Login endpoint
-@app.post("/login", status_code=200)
+@app.post("/api/login", status_code=200)
 def login(request : AuthRequest, db : Session = Depends(get_db)):
     user_row = db.query(User).filter(User.email == request.email).first()
     if user_row == None:
@@ -188,7 +188,7 @@ def login(request : AuthRequest, db : Session = Depends(get_db)):
    
 
 
-@app.post("/portfolio")
+@app.post("/api/portfolio")
 def create_postfolio(request : PortfolioRequest, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
     user_port_rows = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).filter(Portfolio.name == request.name).first()
     if user_port_rows is None:
@@ -201,13 +201,13 @@ def create_postfolio(request : PortfolioRequest, db : Session = Depends(get_db),
         raise HTTPException(status_code=409, detail="Name already exists in your portfolio.")
 
 
-@app.get("/portfolio")
+@app.get("/api/portfolio")
 def get_portfolio(db : Session = Depends(get_db), current_user = Depends(get_current_user)):
     portfolio_rows  = db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
     return [{"id" : row.id, "name" : row.name} for row in portfolio_rows]
     
 
-@app.delete("/portfolio/{portfolio_id}")
+@app.delete("/api/portfolio/{portfolio_id}")
 def delete_portfolio(portfolio_id : int, current_user = Depends(get_current_user), db : Session = Depends(get_db)):
     portfolio_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if portfolio_row == None:
@@ -220,7 +220,7 @@ def delete_portfolio(portfolio_id : int, current_user = Depends(get_current_user
         return f"{portfolio_row.name} has been deleted"
     
 
-@app.post('/holdings/{portfolio_id}')
+@app.post("/api/holdings/{portfolio_id}")
 def add_holdings(portfolio_id : int, request : HoldingRequest, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
     port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if port_row is None:
@@ -235,7 +235,7 @@ def add_holdings(portfolio_id : int, request : HoldingRequest, db : Session = De
     
 
 
-@app.get('/holdings/{portfolio_id}')
+@app.get("/api/holdings/{portfolio_id}")
 def get_holdings(portfolio_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)): 
     port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if port_row == None:
@@ -248,7 +248,7 @@ def get_holdings(portfolio_id : int, db : Session = Depends(get_db), current_use
     
 
     
-@app.delete('/holdings/{portfolio_id}/{holdings_id}')
+@app.delete('/api/holdings/{portfolio_id}/{holdings_id}')
 def delete_holdings(portfolio_id : int, holdings_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
     port_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if port_row == None:
@@ -266,7 +266,7 @@ def delete_holdings(portfolio_id : int, holdings_id : int, db : Session = Depend
 
 
 
-@app.get('/portfolio/{portfolio_id}/summary')
+@app.get("/api/portfolio/{portfolio_id}/summary")
 def get_portfolio_summary(portfolio_id : int, db : Session = Depends(get_db), current_user = Depends(get_current_user)):
     portfolio_row = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if portfolio_row == None:
@@ -295,7 +295,7 @@ def get_portfolio_summary(portfolio_id : int, db : Session = Depends(get_db), cu
         
 
 
-@app.get('/news/{ticker}')
+@app.get("/api/news/{ticker}")
 def get_news_ticker(ticker : str, db : Session = Depends(get_db)):
     news_article_rows = db.query(NewsArticle).filter(NewsArticle.ticker == ticker)\
         .order_by(NewsArticle.timestamp.desc()).limit(10).all()
@@ -307,7 +307,7 @@ def get_news_ticker(ticker : str, db : Session = Depends(get_db)):
                  "timestamp": row.timestamp} for row in news_article_rows]
 
 
-@app.get('/earnings/{ticker}')
+@app.get("/api/earnings/{ticker}")
 def get_earnings(ticker : str ):
     ticker_obj = yf.Ticker(ticker)
     ticker_history = ticker_obj.earnings_history
@@ -324,7 +324,7 @@ def get_earnings(ticker : str ):
 
 
 
-@app.get('/filings/{ticker}')
+@app.get("/api/filings/{ticker}")
 def get_filings(ticker : str):
     sec_filings = get_sec_filings.invoke(ticker)
     return sec_filings

@@ -15,7 +15,7 @@ function PortfolioDashboard() {
     const fetchPortfolios = async () => {
         const token = localStorage.getItem('token')
         try {
-            const portfolioResponse = await axios.get("http://localhost:8000/portfolio", { headers: { Authorization: `Bearer ${token}` } })
+            const portfolioResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/portfolio`, { headers: { Authorization: `Bearer ${token}` } })
             setPortfolios(portfolioResponse.data)
         } catch (error) {
             console.error(error)
@@ -30,7 +30,7 @@ function PortfolioDashboard() {
     const handleCreatePortfolio = async () => {
         const token = localStorage.getItem('token')
         try {
-            await axios.post("http://localhost:8000/portfolio", { name: newPortfolioName }, { headers: { Authorization: `Bearer ${token}` } })
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/portfolio`, { name: newPortfolioName }, { headers: { Authorization: `Bearer ${token}` } })
             setNewPortfolioName('')
             fetchPortfolios()
         } catch (error) {
@@ -42,7 +42,7 @@ function PortfolioDashboard() {
     const handleDeletePortfolio = async (portfolioId) => {
         const token = localStorage.getItem('token')
         try {
-            await axios.delete(`http://localhost:8000/portfolio/${portfolioId}`, { headers: { Authorization: `Bearer ${token}` } })
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/portfolio/${portfolioId}`, { headers: { Authorization: `Bearer ${token}` } })
             fetchPortfolios()
         } catch (error) {
             console.log(error)
@@ -57,7 +57,7 @@ function PortfolioDashboard() {
     const fetchHoldings = async () => {
         const token = localStorage.getItem('token')
         try {
-            const fetchHoldingResponse = await axios.get(`http://localhost:8000/holdings/${selectedPortfolio}`, { headers: { Authorization: `Bearer ${token}` } })
+            const fetchHoldingResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/holdings/${selectedPortfolio}`, { headers: { Authorization: `Bearer ${token}` } })
             setHoldings(fetchHoldingResponse.data)
         } catch (error) {
             console.log(error)
@@ -73,7 +73,7 @@ function PortfolioDashboard() {
     const handleAddHolding = async () => {
         const token = localStorage.getItem('token')
         try {
-            await axios.post(`http://localhost:8000/holdings/${selectedPortfolio}`, { ticker, shares }, { headers: { Authorization: `Bearer ${token}` } })
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/holdings/${selectedPortfolio}`, { ticker, shares }, { headers: { Authorization: `Bearer ${token}` } })
             fetchHoldings()
             setTicker('')
             setShares('')
@@ -86,7 +86,7 @@ function PortfolioDashboard() {
     const handleDeleteHolding = async (holding_id) => {
         const token = localStorage.getItem('token')
         try {
-            await axios.delete(`http://localhost:8000/holdings/${selectedPortfolio}/${holding_id}`, { headers: { Authorization: `Bearer ${token}` } })
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/holdings/${selectedPortfolio}/${holding_id}`, { headers: { Authorization: `Bearer ${token}` } })
             fetchHoldings()
         } catch (error) {
             console.log(error)

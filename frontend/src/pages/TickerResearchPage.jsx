@@ -27,11 +27,11 @@ function TickerResearchPage() {
         setSecFilingCard(null)
         try {
             const [analysisRes, sentimentRes, newsRes, earningsRes, secRes] = await Promise.allSettled([
-                axios.post('http://localhost:8000/analyse', { ticker: ticker.toUpperCase() }),
-                axios.get(`http://localhost:8000/sentiment/history/${ticker.toUpperCase()}`),
-                axios.get(`http://localhost:8000/news/${ticker.toUpperCase()}`),
-                axios.get(`http://localhost:8000/earnings/${ticker.toUpperCase()}`),
-                axios.get(`http://localhost:8000/filings/${ticker.toUpperCase()}`),
+                axios.post(`${import.meta.env.VITE_API_URL}/api/analyse`, { ticker: ticker.toUpperCase() }),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/sentiment/history/${ticker.toUpperCase()}`),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/news/${ticker.toUpperCase()}`),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/earnings/${ticker.toUpperCase()}`),
+                axios.get(`${import.meta.env.VITE_API_URL}/api/filings/${ticker.toUpperCase()}`),
             ])
 
             if (analysisRes.status === 'fulfilled') setAnalysisResult(analysisRes.value.data)
