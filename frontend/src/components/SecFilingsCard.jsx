@@ -33,7 +33,7 @@ function SecFilings({ filings }) {
                             </Typography>
                         </Box>
 
-                        {filings.insider_traders?.length > 0 && (
+                        {Array.isArray(filings.insider_traders) && filings.insider_traders?.length > 0 && (
                             <>
                                 <Divider />
                                 <Box>
