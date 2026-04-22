@@ -538,3 +538,21 @@
   1. System prompt instructs the LLM to produce a report without explicitly requiring tool calls first
   2. Tool docstrings describe implementation rather than when to call the tool
 - Fix needed: update `BASE_SYSTEM_PROMPT` to explicitly require all tools to be called before generating the report. Update tool docstrings to use "use this tool when..." framing
+
+### 2026-04-22
+- Updated `BASE_SYSTEM_PROMPT` in `agent/graph.py` — added explicit grounding requirement: every factual claim must trace back to a tool result, never use prior knowledge for numbers or facts. Added graceful degradation instruction: "Data unavailable — [tool name] returned no results" when a tool fails
+- Updated all tool docstrings in `agent/tools.py` to "use this tool when..." framing:
+  - `get_news` — use to get latest news articles, returns list of article dicts with title, description, publishedAt, url
+  - `get_stock_data` — use to find numerical data including historical prices and fundamentals (marketCap, trailingPE, sector)
+  - `analyze_sentiment` — use after get_news, pass titles extracted from get_news results
+  - `retrieve_rag_chunks` — use for risk factors, management discussion, material 8-K events from SEC filings
+- Added `get_earnings` tool to `agent/tools.py` — calls `yfinance.earnings_history`, returns list of dicts with date, eps_actual, eps_estimate, surprise % per quarter. Dates converted to `str()` to avoid Timestamp serialisation errors
+- Added `get_earnings` to tools list in `graph.py` and updated system prompt to mention it
+- Fixed parallel tool call problem: changed `llm.bind_tools(tools)` to `llm.bind_tools(tools).bind(parallel_tool_calls=False)` — LLM was calling `get_news` and `analyze_sentiment` in the same step, causing LLM to fabricate titles for sentiment analysis since `get_news` results weren't available yet
+- Verified fix via LangSmith: tools now called sequentially in separate agent loops — `get_stock_data` → `get_news` → `analyze_sentiment` → `get_earnings` → `retrieve_rag_chunks`
+- Final report now grounded in real data: EPS 1.65 vs 1.62 estimate, PE 33.7, real risk factors from 10-K RAG chunks, sentiment with actual confidence scores
+
+**Key decisions:**
+- `parallel_tool_calls=False` over combining `get_news` + `analyze_sentiment` into one tool — preserves flexibility for the agent to call each independently if needed
+- `parallel_tool_calls=False` over system prompt ordering instructions — LLMs don't reliably follow ordering instructions, framework-level enforcement is more reliable
+- Market cap returned as raw integer from yfinance — formatting deferred to frontend display layer, not the agent's responsibility

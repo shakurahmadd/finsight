@@ -53,9 +53,15 @@ def get_stock_data(ticker: str):
     historical_data = ticker_obj.history(start= (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d'), 
                                          end=datetime.today().strftime('%Y-%m-%d'))
     historical_data = historical_data.drop(columns=['Open', 'Stock Splits'])
-
+    digits = len(str(info['marketCap']))                                                                                                                      
+    if digits >= 13:                                                                                                                                          
+        market_cap = f"${info['marketCap'] / 10**12:.1f}T"                                                                                                    
+    elif digits >= 10:
+        market_cap = f"${info['marketCap'] / 10**9:.1f}B"                                                                                                     
+    else:                                                                                                                                                     
+        market_cap = f"${info['marketCap'] / 10**6:.1f}M"
     info = ticker_obj.info
-    fundamentals = {'marketCap' : info['marketCap'], 
+    fundamentals = {'marketCap' : market_cap, 
                     'trailingPE': info['trailingPE'], 
                     'sector' : info['sector'], 
                     'longName' : info['longName']}
@@ -103,8 +109,11 @@ def get_sec_filings(ticker: str):
         The 8-K text and insider trading records from Form 4. 
     """
     c = Company(ticker)
-    ten_k = c.get_filings(form='10-K').latest().obj()
-
+    try:
+        ten_k = c.get_filings(form='10-K').latest().obj()
+    except:
+        ten_k = None
+        print(f'10-K is missing for {c}')
     try:
         eight_k = c.get_filings(form='8-K').latest().obj()
     except:
@@ -113,16 +122,17 @@ def get_sec_filings(ticker: str):
 
     try:
         form_4 = c.get_filings(form='4').latest().obj()
+            
     except:
         form_4 = None
         print(f'4K form missing for {c}')
  
 
     sec_dict = {
-        'management_discussion' : ten_k.management_discussion[:3000],
-        'risk_factors' : ten_k.risk_factors[:3000],
+        'management_discussion' : ten_k.management_discussion[:3000] if ten_k else "No recent 10-K found",
+        'risk_factors' : ten_k.risk_factors[:3000] if ten_k else "No recent 10-K found",
         'eight_k': eight_k.text()[:3000] if eight_k else "No recent 8-K found",
-        'insider_traders' : form_4.market_trades.to_dict(orient='records') if form_4 else "No recent Form 4 found"
+        'insider_traders' : form_4.market_trades.to_dict(orient='records') if form_4 and form_4.market_trades else "No recent Form 4 found"
     }
     return sec_dict
 
