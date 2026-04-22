@@ -53,6 +53,7 @@ def get_stock_data(ticker: str):
     historical_data = ticker_obj.history(start= (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d'), 
                                          end=datetime.today().strftime('%Y-%m-%d'))
     historical_data = historical_data.drop(columns=['Open', 'Stock Splits'])
+    info = ticker_obj.info
     digits = len(str(info['marketCap']))                                                                                                                      
     if digits >= 13:                                                                                                                                          
         market_cap = f"${info['marketCap'] / 10**12:.1f}T"                                                                                                    
@@ -60,7 +61,6 @@ def get_stock_data(ticker: str):
         market_cap = f"${info['marketCap'] / 10**9:.1f}B"                                                                                                     
     else:                                                                                                                                                     
         market_cap = f"${info['marketCap'] / 10**6:.1f}M"
-    info = ticker_obj.info
     fundamentals = {'marketCap' : market_cap, 
                     'trailingPE': info['trailingPE'], 
                     'sector' : info['sector'], 
@@ -132,7 +132,7 @@ def get_sec_filings(ticker: str):
         'management_discussion' : ten_k.management_discussion[:3000] if ten_k else "No recent 10-K found",
         'risk_factors' : ten_k.risk_factors[:3000] if ten_k else "No recent 10-K found",
         'eight_k': eight_k.text()[:3000] if eight_k else "No recent 8-K found",
-        'insider_traders' : form_4.market_trades.to_dict(orient='records') if form_4 and form_4.market_trades else "No recent Form 4 found"
+        'insider_traders' : form_4.market_trades.to_dict(orient='records') if form_4 and not form_4.market_trades.empty else "No recent Form 4 found"
     }
     return sec_dict
 
