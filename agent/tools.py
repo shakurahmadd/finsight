@@ -138,7 +138,7 @@ def get_sec_filings(ticker: str):
 
 
 @tool
-def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
+def retrieve_rag_chunks(query : str, ticker : str):
     """
     Retrieve relevant SEC filing chunks for a given ticker and query.                                                                                         
     Use this tool when you need information about risk factors, management discussion,                                                                        
@@ -147,7 +147,6 @@ def retrieve_rag_chunks(query : str, ticker : str, top_k : int = 5):
     Args:
         query: a specific question or topic to retrieve, e.g. "liquidity risk" or "revenue concentration"
         ticker: the company ticker, used to scope the search to that company's filings
-        top_k: number of chunks to return (default 5)
     """
     top_k_chunks = retrieve_chunks(query, ticker)
     return [ {'section': top_k_chunk.section, 'text' : top_k_chunk.chunk_text[:300]} for top_k_chunk in top_k_chunks]
