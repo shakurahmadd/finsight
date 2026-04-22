@@ -11,18 +11,17 @@ FinSight is built around a **LangGraph ReAct agent** — the LLM sits at the cen
 ```mermaid
 graph TD
     A[User Query - Ticker] --> B[Agent Node - LLM]
-    B --> C{Tools}
-    C --> D[get_news]
-    C --> E[analyze_sentiment]
-    C --> F[get_stock_data]
-    C --> G[get_earnings]
-    C --> H[retrieve_rag_chunks]
-    D --> B
-    E --> B
-    F --> B
-    G --> B
-    H --> B
-    B --> I[Structured Research Report]
+    B -->|tool call| D[get_news]
+    B -->|tool call| E[analyze_sentiment]
+    B -->|tool call| F[get_stock_data]
+    B -->|tool call| G[get_earnings]
+    B -->|tool call| H[retrieve_rag_chunks]
+    D -->|result| B
+    E -->|result| B
+    F -->|result| B
+    G -->|result| B
+    H -->|result| B
+    B -->|all data gathered| I[Structured Research Report]
 ```
 
 **Key architectural decisions:**
