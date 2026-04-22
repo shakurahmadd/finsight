@@ -556,3 +556,15 @@
 - `parallel_tool_calls=False` over combining `get_news` + `analyze_sentiment` into one tool — preserves flexibility for the agent to call each independently if needed
 - `parallel_tool_calls=False` over system prompt ordering instructions — LLMs don't reliably follow ordering instructions, framework-level enforcement is more reliable
 - Market cap returned as raw integer from yfinance — formatting deferred to frontend display layer, not the agent's responsibility
+
+### 2026-04-22 (continued)
+- Fixed `get_stock_data` market cap formatting — was returning raw integer (e.g. `3912147140608`). Added digit-count logic to format as `$3.9T`, `$500.0B`, or `$200.0M` depending on magnitude. `info = ticker_obj.info` was moved above the formatting block — CI caught `UnboundLocalError: local variable 'info' referenced before assignment`
+- Fixed `get_sec_filings` null guards:
+  - `ten_k` wrapped in `try/except` — returns `"No recent 10-K found"` for both `management_discussion` and `risk_factors` if missing
+  - `form_4.market_trades` check changed from `if form_4 and form_4.market_trades` to `if form_4 and not form_4.market_trades.empty` — pandas raises `ValueError: The truth value of a DataFrame is ambiguous` when a DataFrame is used directly in a boolean condition. `.empty` is the correct check
+- Verified agent output on EC2: market cap now shows `$3.9T`, EPS 1.65 vs 1.62253, sequential tool calls confirmed via LangSmith
+- Known issue: Groq retrying 3 times before responding — context growing large with sequential tool calls accumulating in messages state. Monitor for now
+
+**Key decisions:**
+- Market cap formatted in the tool, not the frontend — the LLM writes the number into the markdown report, so formatting must happen before it reaches the LLM
+- Digit count used for magnitude detection — avoids hardcoding thresholds, works for any market cap size
