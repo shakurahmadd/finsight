@@ -4,7 +4,7 @@ import os
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.messages import HumanMessage, ToolMessage, SystemMessage
+from langchain_core.messages import HumanMessage, ToolMessage, SystemMessage, AIMessage
 import json
 from db.database import SessionLocal
 from db.models import DkKnowledge, SectorMacroMapping, MacroIndicator
@@ -93,7 +93,11 @@ def agent_node(state):
             session.close()
 
     messages = [SystemMessage(content=system_prompt)] + messages
+
+    messages = [m for m in messages if not isinstance(m, AIMessage) or len(m.tool_calls) == 0]
+
     response = llm_with_tools.invoke(messages)
+
     return {'messages': response}
 
 

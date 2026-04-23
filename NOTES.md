@@ -8,6 +8,12 @@
 
 ---
 
+**Q: Walk me through how you deployed the React frontend — what is Nginx doing, and why did you need it?**
+
+The React app is a set of static files — HTML, CSS, and JavaScript — produced by `npm run build`. They need something to serve them to the browser. Nginx is a lightweight web server that handles this in production. I added it as a third container in docker-compose alongside FastAPI and PostgreSQL. Nginx listens on port 80 and has two routing rules: requests to `/api/` are proxied to the FastAPI container on port 8000 (using the Docker service name `app` as the hostname — containers on the same Docker network resolve each other by service name); everything else serves the static `dist/` files. The `try_files $uri $uri/ /index.html` directive is critical for React Router — if a user navigates directly to `/portfolio`, there's no `portfolio.html` file, so Nginx falls back to `index.html` and React Router handles the route client-side. The frontend Dockerfile uses a multi-stage build: stage 1 uses a Node.js image to run `npm run build` and produce the `dist/` folder; stage 2 starts fresh with a tiny Nginx image and copies only `dist/` in. This keeps the final image ~50MB instead of ~1GB. API calls use `import.meta.env.VITE_API_URL` — empty string in production, so calls become relative URLs that Nginx proxies to FastAPI on the same server.
+
+---
+
 **Q: Why did V1 use a fixed linear pipeline instead of a ReAct agent from the start?**
 
 In V1 there were only three tools and all of them were always needed to produce a meaningful summary — news, stock data, and sentiment. There was no conditional logic to implement. A ReAct agent would have added architectural complexity with no benefit since the LLM would have called the same three tools in the same order every time. V2 introduces EDGAR filings, anomaly detection, and domain knowledge retrieval — tools that aren't always needed. If sentiment is already strong and clear, there may be no reason to check SEC filings. If there are no recent insider trades, Form 4 analysis adds nothing. A ReAct agent can reason about what signal it already has and decide whether additional tool calls are justified. That conditional reasoning is where the agentic pattern earns its complexity.

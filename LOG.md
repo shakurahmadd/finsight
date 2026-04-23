@@ -568,3 +568,37 @@
 **Key decisions:**
 - Market cap formatted in the tool, not the frontend — the LLM writes the number into the markdown report, so formatting must happen before it reaches the LLM
 - Digit count used for magnitude detection — avoids hardcoding thresholds, works for any market cap size
+
+---
+
+## Frontend Deployment via Nginx
+
+### 2026-04-23
+- Added `/api/` prefix to all 18 FastAPI endpoints in `api/main.py` — required for Nginx to distinguish API requests from frontend requests
+- Updated all frontend API calls from `http://localhost:8000/endpoint` to `${import.meta.env.VITE_API_URL}/api/endpoint`
+- Created `frontend/.env` with `VITE_API_URL=http://localhost:8000` for local development
+- Created `frontend/.env.production` with `VITE_API_URL=` (empty) — Vite uses this automatically on `npm run build`, making all API calls relative URLs that Nginx proxies to FastAPI
+- Created `nginx/nginx.conf` — two location blocks:
+  - `/api/` → `proxy_pass http://app:8000` — forwards to FastAPI container by service name
+  - `/` → serves React static files from `/usr/share/nginx/html` with `try_files $uri $uri/ /index.html` — falls back to index.html for React Router client-side routing
+  - Added `proxy_read_timeout 300s` — default 60s timeout was killing long-running agent requests
+- Created `frontend/Dockerfile` — multi-stage build:
+  - Stage 1 (builder): `node:22-alpine` — copies `frontend/package.json`, runs `npm install`, copies all frontend code, runs `npm run build` to produce `dist/`
+  - Stage 2: `nginx:alpine` — copies `dist/` from builder into `/usr/share/nginx/html`, copies `nginx.conf`
+  - Node 22 required — Vite requires Node 20.19+ or 22.12+, Node 18 was too old
+- Added `nginx` service to `docker-compose.yml`:
+  - `build: context: . dockerfile: frontend/Dockerfile` — project root as context so Docker can access both `frontend/` and `nginx/`
+  - `ports: "80:80"` — exposes port 80 on EC2
+  - `depends_on: app` — waits for FastAPI to start
+- Opened port 80 in EC2 security group inbound rules (HTTP, 0.0.0.0/0)
+- Fixed `SecFilingsCard.jsx` — `insider_traders` can be a string ("No recent Form 4 found") when no Form 4 exists. Changed condition from `filings.insider_traders?.length > 0` to `Array.isArray(filings.insider_traders) && filings.insider_traders.length > 0`
+- Fixed `retrieve_rag_chunks` tool — removed `top_k` parameter from signature. Groq was passing it as string `"5"` instead of integer, causing schema validation error. Hardcoded `top_k=3` inside `retrieve_chunks` call
+- Frontend live at `http://51.21.129.219` — full stack deployed and publicly accessible
+- Known limitation: Groq free tier 100,000 tokens/day limit. Sequential tool calls accumulate context across agent loops — each LLM call includes full message history. Token usage adds up fast under load
+
+**Key decisions:**
+- Multi-stage Docker build — Node.js (~1GB) only needed to build, final Nginx image is ~50MB
+- Build context set to project root (not `frontend/`) — allows Dockerfile to access both `frontend/` and `nginx/` directories
+- `/api/` prefix on all endpoints — clean separation between API and frontend routes, Nginx can route by prefix without listing every endpoint
+- `try_files $uri $uri/ /index.html` — required for React Router. Direct URL visits (e.g. `/portfolio`) have no corresponding HTML file; falling back to `index.html` lets React Router handle the route client-side
+- Relative URLs in production — browser automatically prepends the host, no hardcoded IP needed in the frontend code
