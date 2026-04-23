@@ -94,8 +94,6 @@ def agent_node(state):
 
     messages = [SystemMessage(content=system_prompt)] + messages
 
-    messages = [m for m in messages if not isinstance(m, AIMessage) or len(m.tool_calls) == 0]
-
     response = llm_with_tools.invoke(messages)
 
     return {'messages': response}
