@@ -2,6 +2,8 @@
 
 An autonomous financial research agent for retail investors. Given a stock ticker, FinSight retrieves and analyses data from multiple sources, generates a structured research report with red flag alerts, and tracks sentiment momentum across a watchlist.
 
+**Live demo:** http://51.21.129.219
+
 ---
 
 ## Architecture
@@ -64,6 +66,11 @@ graph TD
 - Weighted sentiment aggregation across portfolio holdings
 - Watchlist of 23 major tickers with live sentiment signals
 
+### MCP Server
+- Exposes all agent tools via Model Context Protocol — connect Claude Desktop or Cursor directly to FinSight
+- Runs as a separate container on port 8001 (SSE transport)
+- Tools available: `get_news`, `get_stock_data`, `analyze_sentiment`, `get_earnings`, `retrieve_rag_chunks`
+
 ### Frontend
 - React + Vite + MUI v9 dark theme 
 - Ticker Research Page: research summary, 30-day sentiment chart, news feed, earnings table, SEC filings
@@ -87,7 +94,7 @@ graph TD
 | Frontend | React + Vite + MUI v9 + Recharts |
 | Observability | LangSmith |
 | Containerisation | Docker + docker-compose |
-| CI | GitHub Actions |
+| CI/CD | GitHub Actions |
 | Deployment | AWS EC2 t3.small |
 | Data sources | NewsAPI, yfinance, SEC EDGAR, FRED |
 
@@ -95,7 +102,7 @@ graph TD
 
 ## Local Setup
 
-**Prerequisites:** Docker, docker-compose, Python 3.9
+**Prerequisites:** Docker, docker-compose, Python 3.11
 
 ```bash
 git clone https://github.com/shakurahmad/finsight.git
@@ -129,12 +136,13 @@ docker exec -it finsight-app-1 python -c "from rag.filing_rag import process_fil
 
 ## Roadmap
 
-- [ ] **Nginx + frontend deployment** — serve React static files via Nginx in docker-compose alongside FastAPI
+- [x] **Nginx + frontend deployment** — React static files served via Nginx in docker-compose
+- [x] **CD pipeline** — automated EC2 deployment on push to main via GitHub Actions
+- [ ] **MCP server** — expose FinSight tools to Claude Desktop and other MCP-compatible AI assistants (port 8001)
 - [ ] **Sector Comparison page** — heatmap grid of tickers vs signals, sortable by column
-- [ ] **Portfolio health score** — weighted sentiment aggregation, concentration risk, per-holding alert feed
+- [ ] **Portfolio health score** — concentration risk, per-holding alert feed
 - [ ] **Isolation Forest anomaly detection** — train on accumulated feature vectors (~60 days from April 2026)
 - [ ] **LSTM Autoencoder** — replace Isolation Forest with temporal anomaly detection once baseline is working
-- [ ] **CD pipeline** — automate EC2 deployment on push to main
 
 ---
 
