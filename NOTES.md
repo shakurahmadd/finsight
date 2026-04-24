@@ -787,3 +787,35 @@ if __name__ == "__main__":
 **Why separate container:** failure isolation. MCP container crashing does not affect FastAPI. Each can be restarted independently. Same Dockerfile reused — `command:` in docker-compose overrides the default `bash entrypoint.sh`.
 
 **Port 8001** — FastAPI uses 8000. MCP server exposed directly (not through Nginx) since there's no UI or browser client. Port must be open in EC2 security group inbound rules.
+
+**Tool routing:** Claude reads each tool's docstring when it connects to the server. It reasons about which tools to call based on the user's prompt and the docstring descriptions — no explicit instructions needed. This is why well-written docstrings matter: they're the LLM's instructions for when and how to use each tool.
+
+**Multiple MCP servers:** you can have multiple entries in `mcpServers` — each with its own tool set. Claude sees all tools from all connected servers and picks the right ones automatically based on context.
+
+**Transports — local vs remote:**
+- `stdio` — Claude Desktop launches the server as a subprocess on your machine. No network required. Only works where the code and venv exist (your laptop).
+- `url` (SSE/HTTP) — server runs remotely, clients connect over HTTPS. Requires a domain name for SSL certificate. Works for any MCP client anywhere.
+
+**`MCP_TRANSPORT` pattern:**
+```python
+transport = os.getenv("MCP_TRANSPORT", "sse")
+mcp.run(transport=transport)
+```
+Set `MCP_TRANSPORT=stdio` in local `.env`. EC2 `.env` omits it — defaults to `"sse"`. Same code, different behaviour per environment.
+
+**stdout pollution fix:** in stdio mode, Claude Desktop reads everything on stdout as MCP JSON. Library log messages (sentence-transformers, edgartools) break the protocol. Fix: `logging.disable(logging.CRITICAL)` before imports silences the Python logging module.
+
+**`claude_desktop_config.json` stdio entry:**
+```json
+"mcpServers": {
+  "finsight": {
+    "command": "/full/path/to/venv/bin/python3",
+    "args": ["/full/path/to/mcp_server/server.py"],
+    "cwd": "/full/path/to/project",
+    "env": {
+      "PYTHONPATH": "/full/path/to/project"
+    }
+  }
+}
+```
+Full absolute paths required — relative paths break because Claude Desktop doesn't know your working directory. `PYTHONPATH` ensures Python can find the `agent/` and `rag/` packages.

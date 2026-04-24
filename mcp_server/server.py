@@ -1,8 +1,18 @@
 from agent.tools import analyze_sentiment, get_stock_data, get_news, retrieve_rag_chunks, get_earnings
 from mcp.server.fastmcp import FastMCP
+import os
+from dotenv import load_dotenv
+import logging
+logging.disable(logging.CRITICAL)
+
+load_dotenv()
+
 
 # create the server
 mcp = FastMCP("finsight", host="0.0.0.0", port=8001)
+
+
+
 
 
 @mcp.tool()
@@ -77,7 +87,8 @@ def get_earnings_tool(ticker: str):
     """
     return get_earnings(ticker)
 
+transport = os.getenv("MCP_TRANSPORT", "sse")
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    mcp.run(transport=transport)
 

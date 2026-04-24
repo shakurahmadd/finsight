@@ -628,3 +628,16 @@
 - `appleboy/ssh-action` over manual SSH setup — pre-built action handles key parsing, connection, and error reporting cleanly
 - MCP exposed directly on port 8001 (not through Nginx) — no UI, no browser clients, MCP clients connect directly. Can be put behind Nginx later if needed
 - Python 3.11 upgrade was required for `mcp` — nothing in the codebase was 3.9-specific, safe to upgrade
+
+### 2026-04-24 (continued) — MCP Claude Desktop integration
+- Connected MCP server to Claude Desktop via stdio transport (local only — no domain/HTTPS required)
+- Added `MCP_TRANSPORT` env var to `.env` — `stdio` locally, defaults to `sse` on EC2 via `os.getenv("MCP_TRANSPORT", "sse")`
+- Added `logging.disable(logging.CRITICAL)` to `mcp_server/server.py` — sentence-transformers and other libraries print INFO logs to stdout which Claude Desktop tries to parse as JSON, causing errors
+- Configured `claude_desktop_config.json` with stdio transport entry: full path to venv Python, absolute path to server file, `cwd` and `PYTHONPATH` set to project root
+- Verified: Claude Desktop connected, all 5 tools listed, tool calls working end-to-end
+- Limitation: stdio transport only works on the local machine. Remote access requires HTTPS + domain for `url` transport
+
+**Key decisions:**
+- stdio over url transport for local testing — no domain or SSL certificate needed, Claude Desktop launches server as subprocess directly
+- `MCP_TRANSPORT` env var — same codebase supports both local (stdio) and EC2 (sse) without code changes
+- `logging.disable(logging.CRITICAL)` — in stdio mode stdout is the MCP communication channel, any non-JSON output breaks the protocol
