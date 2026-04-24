@@ -1,7 +1,7 @@
 pandas
 transformers==4.44.0
 numpy<2
-torch
+torch==2.2.2
 huggingface_hub
 requests
 yfinance
