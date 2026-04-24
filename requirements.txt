@@ -1,5 +1,6 @@
 pandas
-transformers
+transformers==4.44.0
+numpy<2
 torch
 huggingface_hub
 requests
@@ -22,3 +23,4 @@ bcrypt==4.0.1
 apscheduler
 pgvector
 sentence_transformers
+mcp

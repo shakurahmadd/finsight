@@ -602,3 +602,29 @@
 - `/api/` prefix on all endpoints — clean separation between API and frontend routes, Nginx can route by prefix without listing every endpoint
 - `try_files $uri $uri/ /index.html` — required for React Router. Direct URL visits (e.g. `/portfolio`) have no corresponding HTML file; falling back to `index.html` lets React Router handle the route client-side
 - Relative URLs in production — browser automatically prepends the host, no hardcoded IP needed in the frontend code
+
+---
+
+## CD Pipeline + MCP Server
+
+### 2026-04-24
+- Added `deploy` job to `.github/workflows/ci.yml` — SSH into EC2 and redeploy on every push to `main`
+- `needs: test` — deploy only runs if all tests pass
+- `if: github.ref == 'refs/heads/main'` — deploy only runs on pushes to main, not feature branches
+- Added three GitHub repository secrets: `EC2_HOST`, `EC2_USER`, `EC2_KEY` (full contents of `.pem` private key)
+- Deploy step uses `appleboy/ssh-action@v1.0.0` — pre-built GitHub Actions action that handles SSH connection. Inputs: `host`, `username`, `key`, `script`
+- Script: `cd /home/ec2-user/finsight && git pull origin main && docker-compose down && docker-compose up -d --build`
+- Opened port 8001 in EC2 security group for MCP server
+- Upgraded project from Python 3.9 to Python 3.11 — required by `mcp` package. Updated `Dockerfile`, `ci.yml`, and local venv
+- Fixed dependency conflicts after Python 3.11 upgrade: pinned `transformers==4.44.0` (newer version has `nn` not defined bug), pinned `numpy<2` (incompatible with torch 2.2.2)
+- Built `mcp_server/server.py` — FastMCP server exposing all five agent tools to any MCP-compatible AI client
+- Server runs on port 8001 (FastAPI uses 8000)
+- Added `mcp` service to `docker-compose.yml` — separate container from `app`, same Dockerfile, command overridden to `python3 -m mcp_server.server`
+- Separation of concerns: MCP container crashing does not affect FastAPI container
+
+**Key decisions:**
+- Separate container for MCP server — failure isolation. If MCP crashes, FastAPI keeps running
+- Reuse existing Dockerfile for MCP container — same Python environment, command overridden via `command:` in docker-compose
+- `appleboy/ssh-action` over manual SSH setup — pre-built action handles key parsing, connection, and error reporting cleanly
+- MCP exposed directly on port 8001 (not through Nginx) — no UI, no browser clients, MCP clients connect directly. Can be put behind Nginx later if needed
+- Python 3.11 upgrade was required for `mcp` — nothing in the codebase was 3.9-specific, safe to upgrade

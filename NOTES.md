@@ -713,3 +713,77 @@ if port_row.user_id != current_user.id:
     raise HTTPException(status_code=403, ...)
 ```
 Always 404 before 403 — check existence first, then ownership.
+
+---
+
+## CD Pipeline (GitHub Actions)
+
+Automated deployment to EC2 triggered on every push to `main` after tests pass.
+
+**Job structure:**
+```yaml
+deploy:
+  needs: test                              # only runs if test job passes
+  if: github.ref == 'refs/heads/main'     # only on main branch pushes
+  runs-on: ubuntu-latest
+  steps:
+    - uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          cd /home/ec2-user/finsight
+          git pull origin main
+          docker-compose down && docker-compose up -d --build
+```
+
+**How SSH authentication works:** EC2 stores a public key. Your `.pem` file is the private key. When SSH connects, it proves ownership of the private key — EC2 verifies it matches the stored public key and grants access. No password needed.
+
+**GitHub Actions runner:** `runs-on: ubuntu-latest` is a temporary VM that GitHub spins up to run the workflow. It's not EC2 — it's the middleman that runs `appleboy/ssh-action` which connects to EC2.
+
+**`appleboy/ssh-action`:** pre-built action (owner/repo@version format). Handles SSH connection, authentication, and command execution. `with:` block passes inputs to the action — equivalent to function arguments.
+
+**`needs:`** creates a dependency between jobs — deploy waits for test to succeed before starting.
+
+**`if: github.ref == 'refs/heads/main'`** — tests run on every push (all branches), deploy only on main.
+
+**Secrets:** `EC2_KEY` must contain the full `.pem` file contents including `-----BEGIN RSA PRIVATE KEY-----` header/footer lines. Use `cat ~/.ssh/finsight.pem | pbcopy` on Mac to copy cleanly.
+
+---
+
+## MCP Server
+
+MCP (Model Context Protocol) — Anthropic's standard for exposing tools to AI assistants. Any MCP-compatible host (Claude Desktop, Cursor) can connect to an MCP server and use its tools without custom integration code per host.
+
+**Three components:**
+- **Host** — the AI application (Claude Desktop, Cursor). Contains an MCP client.
+- **Client** — the piece inside the host that speaks MCP protocol to the server.
+- **Server** — your code. Exposes tools. You only build this part.
+
+**Two transports:**
+- `stdio` — host launches server as a subprocess, communicates via stdin/stdout. For local tools.
+- `sse` (HTTP/SSE) — server runs as a web service, clients connect over network. For remote/hosted servers.
+
+FinSight uses `sse` — server runs on EC2, not on the user's machine.
+
+**FastMCP pattern:**
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("finsight", host="0.0.0.0", port=8001)
+
+@mcp.tool()
+def get_news_tool(ticker: str):
+    """Docstring tells the AI client what this tool does and when to call it."""
+    return get_news(ticker)
+
+if __name__ == "__main__":
+    mcp.run(transport="sse")
+```
+
+**Why wrapper functions:** MCP tool functions can't share a name with the imported tool functions — Python naming conflict. Wrapper functions with `_tool` suffix call through to the original tools.
+
+**Why separate container:** failure isolation. MCP container crashing does not affect FastAPI. Each can be restarted independently. Same Dockerfile reused — `command:` in docker-compose overrides the default `bash entrypoint.sh`.
+
+**Port 8001** — FastAPI uses 8000. MCP server exposed directly (not through Nginx) since there's no UI or browser client. Port must be open in EC2 security group inbound rules.
