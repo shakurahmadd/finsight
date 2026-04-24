@@ -5,7 +5,7 @@ torch
 huggingface_hub
 requests
 yfinance
-peft
+peft==0.19.1
 fastapi
 psycopg2-binary
 langgraph
