@@ -77,8 +77,10 @@ def get_stock_data(ticker: str):
         market_cap = f"${raw_cap / 1_000_000_000:.1f}B"
     else:
         market_cap = f"${raw_cap / 1_000_000:.1f}M"
+    raw_pe = info.get('trailingPE')
+    trailing_pe = round(raw_pe, 2) if raw_pe is not None else 'N/A'
     fundamentals = {'marketCap': market_cap,
-                    'trailingPE': info.get('trailingPE', 'N/A'),
+                    'trailingPE': trailing_pe,
                     'sector': info.get('sector', 'N/A'),
                     'longName': info.get('longName', ticker)}
     stock_data = {"history": historical_data.to_dict(orient='records'), "fundamentals" : fundamentals}
@@ -109,7 +111,7 @@ def analyze_sentiment(titles: list[str]) -> list[dict]:
         title_labels = []
         for index in predicted_labels:
             title_labels.append(label_mapping[index.item()])
-        title_sentiment = [{'title' : title, 'label': label, 'confidence' : conf.item()} for title, label, conf in zip(titles, title_labels, confidence)]
+        title_sentiment = [{'title': title, 'label': label, 'confidence': round(conf.item(), 2)} for title, label, conf in zip(titles, title_labels, confidence)]
     return title_sentiment
 
 
@@ -195,5 +197,5 @@ def get_earnings(ticker : str ):
     eps_estimates = ticker_history['epsEstimate']
     dates = ticker_history.index
     surprises = ((eps_actuals - eps_estimates) / abs(eps_estimates) * 100)
-    return [{'date': str(date), 'eps_actual': eps_actual, 'eps_estimate': eps_estimate, 'surprise': surprise}
+    return [{'date': str(date), 'eps_actual': round(float(eps_actual), 2), 'eps_estimate': round(float(eps_estimate), 2), 'surprise': round(float(surprise), 2)}
             for date, eps_actual, eps_estimate, surprise in zip(dates, eps_actuals, eps_estimates, surprises)]
