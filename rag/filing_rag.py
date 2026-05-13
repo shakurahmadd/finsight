@@ -6,10 +6,6 @@ from datetime import date
 from sqlalchemy import func 
 
 
-model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-
-
-
 def chunk_text(text, chunk_size: int = 500, overlap = 50):
     l, r = 0, chunk_size 
     chunk_text = []
@@ -22,7 +18,7 @@ def chunk_text(text, chunk_size: int = 500, overlap = 50):
     return chunk_text
 
 
-def embed_chunks(chunks):
+def embed_chunks(chunks, model):
     embeddings = model.encode(chunks)
     return embeddings
 
@@ -70,7 +66,7 @@ def fetch_sec_filings(ticker: str):
     return sec_filings
 
 
-def process_filing(ticker):
+def process_filing(ticker, model):
     db = SessionLocal()
     try:
         sec_filings = fetch_sec_filings(ticker)
@@ -80,7 +76,7 @@ def process_filing(ticker):
             if db.query(FilingChunk).filter(FilingChunk.ticker == ticker).\
                 filter(func.date(FilingChunk.filing_date) == sec_filing['date']).first() == None:
                 chunks = chunk_text(sec_filing['text'])
-                embeddings = embed_chunks(chunks)
+                embeddings = embed_chunks(chunks, model)
                 store = store_chunks(ticker, sec_filing['section'], chunks, embeddings, sec_filing['date'])
     except Exception as e:
         print(e)
@@ -89,13 +85,14 @@ def process_filing(ticker):
 
 
 def retrieve_chunks(query, ticker, top_k = 3):
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
     embeded = model.encode(query)
     db = SessionLocal()
     try:
         top_k_chunks = db.query(FilingChunk).filter(FilingChunk.ticker == ticker).order_by(FilingChunk.embedding.op('<=>')(embeded)).limit(top_k).all()
     finally:
         db.close()
-    return top_k_chunks 
+    return top_k_chunks
 
 
 

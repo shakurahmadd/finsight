@@ -7,6 +7,7 @@ import yfinance as yf
 from edgar import Company
 from sqlalchemy import func
 from rag.filing_rag import process_filing
+from sentence_transformers import SentenceTransformer
 
 
 def fetch_and_cache_news():
@@ -144,11 +145,12 @@ def build_feature_vectors():
 
 
 def process_all_filings():
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
     db = SessionLocal()
     try:
         watch_list_rows = db.query(Watchlist).all()
         for watch_list_row in watch_list_rows:
-            process_filing(watch_list_row.ticker)
+            process_filing(watch_list_row.ticker, model)
 
     finally:
         db.close()
