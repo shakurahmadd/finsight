@@ -1,4 +1,11 @@
 from rag.filing_rag import chunk_text, embed_chunks
+from sentence_transformers import SentenceTransformer
+
+import pytest
+
+@pytest.fixture(scope="module")
+def embedding_model():
+    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 
 def test_chunk_text_produces_multiple_chunks_for_long_text():
@@ -34,13 +41,13 @@ def test_chunk_text_adjacent_chunks_share_overlap():
     assert chunks[0][-50:] == chunks[1][:50]
 
 
-def test_embed_chunks_returns_correct_shape():
+def test_embed_chunks_returns_correct_shape(embedding_model):
     chunks = ["Apple reported strong quarterly earnings.", "The company faces regulatory headwinds."]
-    embeddings = embed_chunks(chunks)
+    embeddings = embed_chunks(chunks, embedding_model)
     assert embeddings.shape == (2, 384)
 
 
-def test_embed_chunks_single_input_shape():
+def test_embed_chunks_single_input_shape(embedding_model):
     chunks = ["Macroeconomic headwinds weigh on consumer spending."]
-    embeddings = embed_chunks(chunks)
+    embeddings = embed_chunks(chunks, embedding_model)
     assert embeddings.shape == (1, 384)
