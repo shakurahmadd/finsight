@@ -56,17 +56,13 @@ def score_and_store_sentiment():
                     filter(NewsArticle.timestamp >= datetime.now() - timedelta(days=7)).all()
                 
 
-                article_titles = [article.title for article in ticker_articles]
-                sentiment = analyze_sentiment.invoke({'titles' : article_titles})
-
-                for sent, article in zip(sentiment, ticker_articles):
-                    if not article.timestamp:
+                for article in ticker_articles:
+                    if not article.timestamp or not article.sentiment_label:
                         continue
-                    else:
-                        days_old = (date.today() - article.timestamp.date()).days
-                        weight = sent['confidence'] * np.exp(-0.5 * days_old)
-                        numerator += label_map[sent['label']] * weight
-                        denominator += weight
+                    days_old = (date.today() - article.timestamp.date()).days
+                    weight = article.sentiment_confidence * np.exp(-0.5 * days_old)
+                    numerator += label_map[article.sentiment_label] * weight
+                    denominator += weight
                 if denominator == 0:
                     continue
                 else:
@@ -104,7 +100,10 @@ def build_feature_vectors():
                 price_volatility = daily_returns.std()
 
                 ticker_earnings_history = ticker_obj.earnings_history
-                suprise_earnings = (ticker_earnings_history.iloc[0]['epsActual'] - ticker_earnings_history.iloc[0]['epsEstimate']) / np.abs(ticker_earnings_history.iloc[0]['epsEstimate']) * 100 
+                if ticker_earnings_history is None or ticker_earnings_history.empty:
+                    suprise_earnings = 0.0
+                else:
+                    suprise_earnings = (ticker_earnings_history.iloc[0]['epsActual'] - ticker_earnings_history.iloc[0]['epsEstimate']) / np.abs(ticker_earnings_history.iloc[0]['epsEstimate']) * 100
 
                 sec_filings = get_sec_filings.invoke(row.ticker)
                 form_4 = sec_filings['insider_traders']

@@ -84,22 +84,28 @@ app.add_middleware(
 @app.post("/api/analyse", response_model=AnalyseResponse)
 def analyse(request: AnalyseRequest, db: Session = Depends(get_db)):
     check = db.query(AnalysisResult).filter_by(ticker=request.ticker).first()
-   
+
     if check is None:
-        result = graph_app.invoke({'messages' : [HumanMessage(content = f"Provide and alaysis on the ticker: {request.ticker}")]})
+        try:
+            result = graph_app.invoke({'messages': [HumanMessage(content=f"Provide and alaysis on the ticker: {request.ticker}")]})
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
         new_result = AnalysisResult(ticker=request.ticker, summary=result['messages'][-1].content)
         db.add(new_result)
         db.commit()
-        return AnalyseResponse(ticker=request.ticker, summary=result['messages'][-1].content, timestamp=datetime.now(timezone.utc)) 
-    
+        return AnalyseResponse(ticker=request.ticker, summary=result['messages'][-1].content, timestamp=datetime.now(timezone.utc))
+
     elif (datetime.now(timezone.utc) - check.timestamp) > timedelta(days=1):
-        result = graph_app.invoke({'messages' : [HumanMessage(content = f"Provide and alaysis on the ticker: {request.ticker}")]})
+        try:
+            result = graph_app.invoke({'messages': [HumanMessage(content=f"Provide and alaysis on the ticker: {request.ticker}")]})
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
         check.summary = result['messages'][-1].content
         check.timestamp = datetime.now(timezone.utc)
         db.commit()
         return AnalyseResponse(ticker=request.ticker, summary=result['messages'][-1].content, timestamp=datetime.now(timezone.utc))
     else:
-        return AnalyseResponse(ticker = request.ticker, summary=check.summary, timestamp=check.timestamp)
+        return AnalyseResponse(ticker=request.ticker, summary=check.summary, timestamp=check.timestamp)
     
 
 @app.get("/api/results/{ticker}")

@@ -6,6 +6,15 @@ from datetime import date
 from sqlalchemy import func 
 
 
+_embedding_model = None
+
+def _get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    return _embedding_model
+
+
 def chunk_text(text, chunk_size: int = 500, overlap = 50):
     l, r = 0, chunk_size 
     chunk_text = []
@@ -85,7 +94,7 @@ def process_filing(ticker, model):
 
 
 def retrieve_chunks(query, ticker, top_k = 3):
-    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    model = _get_embedding_model()
     embeded = model.encode(query)
     db = SessionLocal()
     try:

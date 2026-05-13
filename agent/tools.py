@@ -8,8 +8,10 @@ import yfinance as yf
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
 from langchain_core.tools import tool
-from edgar import Company, set_identity      
-from rag.filing_rag import retrieve_chunks                                                                                                             
+from edgar import Company, set_identity
+from rag.filing_rag import retrieve_chunks
+from db.database import SessionLocal
+from db.models import NewsArticle                                                                                                             
 
 
 load_dotenv()
@@ -31,12 +33,24 @@ def get_news(ticker: str):
     Returns:
         list of article dicts, each containing 'title', 'description', 'publishedAt', and 'url'
     """
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now() - timedelta(hours=24)
+        cached = db.query(NewsArticle).filter(
+            NewsArticle.ticker == ticker,
+            NewsArticle.timestamp >= cutoff
+        ).limit(10).all()
+        if cached:
+            return [{'title': a.title, 'description': a.content, 'publishedAt': str(a.timestamp), 'url': ''} for a in cached]
+    finally:
+        db.close()
+
     newsapi = NewsApiClient(api_key=news_api)
     all_articles = newsapi.get_everything(q=ticker,
-                                      language='en',
-                                      from_param= (datetime.today() - timedelta(days=7)),
-                                      sort_by='relevancy',
-                                      page_size=10)
+                                          language='en',
+                                          from_param=(datetime.today() - timedelta(days=7)),
+                                          sort_by='relevancy',
+                                          page_size=10)
     return all_articles['articles']
 
 
@@ -52,19 +66,21 @@ def get_stock_data(ticker: str):
     ticker_obj = yf.Ticker(ticker)
     historical_data = ticker_obj.history(start= (datetime.today() - timedelta(days=7)).strftime('%Y-%m-%d'), 
                                          end=datetime.today().strftime('%Y-%m-%d'))
-    historical_data = historical_data.drop(columns=['Open', 'Stock Splits'])
+    historical_data = historical_data.drop(columns=['Open', 'Stock Splits'], errors='ignore')
     info = ticker_obj.info
-    digits = len(str(info['marketCap']))                                                                                                                      
-    if digits >= 13:                                                                                                                                          
-        market_cap = f"${info['marketCap'] / 10**12:.1f}T"                                                                                                    
-    elif digits >= 10:
-        market_cap = f"${info['marketCap'] / 10**9:.1f}B"                                                                                                     
-    else:                                                                                                                                                     
-        market_cap = f"${info['marketCap'] / 10**6:.1f}M"
-    fundamentals = {'marketCap' : market_cap, 
-                    'trailingPE': info['trailingPE'], 
-                    'sector' : info['sector'], 
-                    'longName' : info['longName']}
+    raw_cap = info.get('marketCap')
+    if raw_cap is None:
+        market_cap = "N/A"
+    elif raw_cap >= 1_000_000_000_000:
+        market_cap = f"${raw_cap / 1_000_000_000_000:.1f}T"
+    elif raw_cap >= 1_000_000_000:
+        market_cap = f"${raw_cap / 1_000_000_000:.1f}B"
+    else:
+        market_cap = f"${raw_cap / 1_000_000:.1f}M"
+    fundamentals = {'marketCap': market_cap,
+                    'trailingPE': info.get('trailingPE', 'N/A'),
+                    'sector': info.get('sector', 'N/A'),
+                    'longName': info.get('longName', ticker)}
     stock_data = {"history": historical_data.to_dict(orient='records'), "fundamentals" : fundamentals}
 
     return stock_data
@@ -111,19 +127,19 @@ def get_sec_filings(ticker: str):
     c = Company(ticker)
     try:
         ten_k = c.get_filings(form='10-K').latest().obj()
-    except:
+    except Exception:
         ten_k = None
         print(f'10-K is missing for {c}')
     try:
         eight_k = c.get_filings(form='8-K').latest().obj()
-    except:
+    except Exception:
         eight_k = None
         print(f'8K form missing for {c}')
 
     try:
         form_4 = c.get_filings(form='4').latest().obj()
             
-    except:
+    except Exception:
         form_4 = None
         print(f'4K form missing for {c}')
  
@@ -173,9 +189,11 @@ def get_earnings(ticker : str ):
     """
     ticker_obj = yf.Ticker(ticker)
     ticker_history = ticker_obj.earnings_history
+    if ticker_history is None or ticker_history.empty:
+        return "No earnings data available"
     eps_actuals = ticker_history['epsActual']
     eps_estimates = ticker_history['epsEstimate']
     dates = ticker_history.index
-    surprises = ((eps_actuals - eps_estimates) / abs(eps_estimates) * 100 )
-    return [{'date' : str(date), 'eps_actual' : eps_actual, 'eps_estimate' : eps_estimate, 'surprise' : surprise}
-             for date, eps_actual, eps_estimate, surprise in zip(dates, eps_actuals, eps_estimates, surprises)] 
+    surprises = ((eps_actuals - eps_estimates) / abs(eps_estimates) * 100)
+    return [{'date': str(date), 'eps_actual': eps_actual, 'eps_estimate': eps_estimate, 'surprise': surprise}
+            for date, eps_actual, eps_estimate, surprise in zip(dates, eps_actuals, eps_estimates, surprises)]
